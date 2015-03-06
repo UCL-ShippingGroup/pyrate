@@ -1,6 +1,6 @@
 import configparser
 import logging
-import loader
+from pyrate import loader
 import argparse
 
 logger = logging.getLogger()

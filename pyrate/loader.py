@@ -24,7 +24,7 @@ def loadAllModules(paths):
 class Loader:
 
 	def __init__(self, config):
-		repopaths = config.get('globals', 'repos', fallback='./repositories')
+		repopaths = config.get('globals', 'repos', fallback='pyrate/repositories')
 		repopaths = repopaths.split(',')
 
 		# load repo drivers from repopaths
@@ -40,11 +40,11 @@ class Loader:
 			if not 'type' in conf:
 				logging.warning("Repository "+ r +" does not specify a type in the config file.")
 			elif not conf['type'] in repoDrivers:
-				logging.warning("Driver of type "+ conf['type'] +"for repository "+ r +" not found.")
+				logging.warning("Driver of type "+ conf['type'] +" for repository "+ r +" not found.")
 			else:
 				repoConfDict[r] = conf
 
-		algopaths = config.get('globals', 'algos', fallback='./algorithms')
+		algopaths = config.get('globals', 'algos', fallback='pyrate/algorithms')
 		algopaths = algopaths.split(',')
 
 		# load algorithms from algopaths
