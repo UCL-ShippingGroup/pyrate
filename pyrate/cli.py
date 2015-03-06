@@ -1,14 +1,20 @@
-import configparser
 import logging
-from pyrate import loader
+try:
+	from pyrate import loader
+except ImportError:
+	import loader
 import argparse
+try:
+	from configparser import ConfigParser
+except ImportError:
+	from ConfigParser import SafeConfigParser as ConfigParser
 
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
 # load tool components
-config = configparser.ConfigParser()
-config.read('aistool.conf')
+config = loader.default_config
+config.read(['aistool.conf'])
 l = loader.Loader(config)
 
 def listComponents(args):

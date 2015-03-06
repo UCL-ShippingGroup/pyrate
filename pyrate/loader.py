@@ -3,6 +3,10 @@ import imp
 import pkgutil
 import inspect
 import contextlib
+try:
+	from configparser import ConfigParser
+except ImportError:
+	from ConfigParser import SafeConfigParser as ConfigParser
 
 def loadModule(name, paths):
 	fp, pathname, description = imp.find_module(name, paths)
@@ -20,11 +24,15 @@ def loadAllModules(paths):
 			logging.warn("Error importing module "+ name +": {}".format(e))
 	return modules
 
+default_config = ConfigParser()
+default_config.add_section('globals')
+default_config.set('globals', 'repos', 'pyrate/repositories')
+default_config.set('globals', 'algos', 'pyrate/algorithms')
 
 class Loader:
 
 	def __init__(self, config):
-		repopaths = config.get('globals', 'repos', fallback='pyrate/repositories')
+		repopaths = config.get('globals', 'repos')
 		repopaths = repopaths.split(',')
 
 		# load repo drivers from repopaths
@@ -36,7 +44,9 @@ class Loader:
 		# check which repos we have drivers for
 		repoConfDict = {}
 		for r in repoConfig:
-			conf = config[r]
+			conf = {}
+			for name, value in config.items(r):
+				conf[name] = value
 			if not 'type' in conf:
 				logging.warning("Repository "+ r +" does not specify a type in the config file.")
 			elif not conf['type'] in repoDrivers:
@@ -44,7 +54,7 @@ class Loader:
 			else:
 				repoConfDict[r] = conf
 
-		algopaths = config.get('globals', 'algos', fallback='pyrate/algorithms')
+		algopaths = config.get('globals', 'algos')
 		algopaths = algopaths.split(',')
 
 		# load algorithms from algopaths
