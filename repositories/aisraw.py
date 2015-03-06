@@ -2,8 +2,9 @@ from repositories import sql
 import logging
 import psycopg2
 
-repo = True
-_type_ = "aisraw"
+export_commands = [('status', 'report status of this repository.'),
+		('create', 'create the repository.'),
+		('truncate', 'delete data in this repository.')]
 
 def load(options, readonly=False):
 	return AISRaw(options, readonly)
@@ -11,7 +12,8 @@ def load(options, readonly=False):
 class AISRaw(sql.PgsqlRepository):
 
 	double_type = 'double precision'
-	cols = [('MMSI', 'integer'),
+	cols = [('ID', 'SERIAL PRIMARY KEY'),
+		('MMSI', 'integer'),
 		('Time', 'timestamp without time zone'),
 		('Message_ID', 'integer'),
 		('Navigational_status', 'integer'),
@@ -36,7 +38,20 @@ class AISRaw(sql.PgsqlRepository):
 				('msg_idx', ['Message_ID'])]
 
 	def status(self):
-		pass
+		print("Status of PGSql table "+ self.db +"."+ self.getTableName() +":")
+		s = self._status()
+		if s >= 0:
+			print("{} rows.".format(s))
+		else:
+			print("Table not yet created.")
+
+	def _status(self):
+		with self.conn.cursor() as cur:
+			try:
+				cur.execute("SELECT COUNT(*) FROM \""+ self.getTableName() +"\"")
+				return cur.fetchone()[0]
+			except psycopg2.ProgrammingError:
+				return -1
 
 	def create(self):
 		"""Create the table for the raw AIS data."""

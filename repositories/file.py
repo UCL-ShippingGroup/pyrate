@@ -1,10 +1,6 @@
 import os
 
-repo = True
-_type_ = "file"
-"""
-Description of this plugin for super tool.
-"""
+export_commands = [('status', 'report status of this repository.')]
 
 def load(options, readonly=False):
 	assert 'path' in options
@@ -27,6 +23,15 @@ class FileRepository:
 		self.root = path
 		self.allowedExtensions = allowedExtensions
 		self.recursive = recursive
+
+	def __enter__(self):
+		pass
+
+	def __exit__(self, exc_type, exc_value, traceback):
+		pass
+
+	def status(self):
+		print("Folder at {}".format(self.root))
 
 	def iterFiles(self):
 		"""
