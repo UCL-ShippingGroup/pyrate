@@ -1,40 +1,44 @@
 import os
 import csv
 import logging
-import Queue
+try:
+	import queue
+except ImportError:
+	# python 2 compatability
+	import Queue as queue
 import threading
 import time
 from datetime import datetime
 
-_algo_ = True
-_type_ = "parser"
-inputs = {"aiscsv": {'extensions': ['.csv']}}
-outputs = {"aisraw": None, "discardlog": None}
+algo = True
+_name_ = "aisparser"
+inputs = ["aiscsv"]
+outputs = ["aisraw", "discardlog"]
 
-def parseTimestamp(str):
-	return datetime.strptime(str, '%Y%m%d_%H%M%S')
+def parseTimestamp(s):
+	return datetime.strptime(s, '%Y%m%d_%H%M%S')
 
-def intOrNull(str):
-	if len(str) == 0:
+def intOrNull(s):
+	if len(s) == 0:
 		return None
 	else:
-		return int(str)
+		return int(s)
 
-def floatOrNull(str):
-	if len(str) == 0 or str == 'None':
+def floatOrNull(s):
+	if len(s) == 0 or s == 'None':
 		return None
 	else:
-		return float(str)
+		return float(s)
 
-def imostr(str):
-	if len(str) > 20:
+def imostr(s):
+	if len(s) > 20:
 		return None
-	return str
+	return s
 
-def longstr(str):
-	if len(str) > 255:
-		return str.substring(0,254)
-	return str
+def longstr(s):
+	if len(s) > 255:
+		return s.substring(0,254)
+	return s
 
 # specifies columns to take from raw data, and functions to convert them into
 # suitable type for the database.
@@ -57,15 +61,17 @@ ais_csv_columns = [('MMSI', intOrNull),
 		('ETA_minute', intOrNull)]
 
 def populate(inp, out, options={}):
+	"""Populate the AIS_Raw database with messages from the AIS csv files."""
+
 	files = inp['aiscsv']
-	db = out['aisraw']
+	db =  out['aisraw']
 	log = out['discardlog']
 
 	# drop indexes for faster insert
 	db._dropIndices()
 
 	# queue for messages to be inserted into db
-	q = Queue.Queue(maxsize=10)
+	q = queue.Queue(maxsize=10)
 
 	# worker thread which takes batches of tuples from the queue to be
 	# inserted into db
@@ -75,13 +81,15 @@ def populate(inp, out, options={}):
 			msgs = q.get()
 
 			n = len(msgs)
-			with db.conn.cursor() as cur:
-				# create a single query to insert list of tuples
-				args = ','.join(cur.mogrify(tuplestr, x) for x in msgs)
-				try:
-					cur.execute("INSERT INTO \""+ db.getTableName() +"\" VALUES "+ args)
-				except e:
-					logging.warning("Error executing query: {}".format(e))
+			if n > 0:
+				with db.conn.cursor() as cur:
+					# create a single query to insert list of tuples
+					# note that mogrify generates a binary string which we must first decide to ascii.
+					args = ','.join([cur.mogrify(tuplestr, x).decode('ascii') for x in msgs])
+					try:
+						cur.execute("INSERT INTO \""+ db.getTableName() +"\" VALUES "+ args)
+					except Exception as e:
+						logging.warning("Error executing query: {}".format(e))
 			# mark this task as done
 			q.task_done()
 			db.conn.commit()
@@ -94,27 +102,32 @@ def populate(inp, out, options={}):
 
 	for fp, name, ext in files.iterFiles():
 		logging.info("Parsing "+ name)
-		# first line is column headers. Use to extract indices
+		# first line is column headers. Use to extract indices of columns we are extracting
 		cols = fp.readline().split(',')
 		indices = []
 		for c, f in ais_csv_columns:
 			indices.append(cols.index(c))
 		
 		# open error log csv file and write header
-		errorLog = open(os.path.join(log.root, name), 'wb')
+		errorLog = open(os.path.join(log.root, name), 'w')
 		logwriter = csv.writer(errorLog, delimiter=',', quotechar='"')
 		logwriter.writerow([c[0] for c in ais_csv_columns] + ["FirstError"]) 
 
+		# message counters
 		insertedCtr = 0
 		invalidCtr = 0
 		batch = []
+
+		# parse and iterate lines from the current csv file
 		for row in csv.reader(fp, delimiter=',', quotechar='"'):
 			try:
+				# convert row for database insertion
 				convertedRow = []
 				for i, col in enumerate(ais_csv_columns):
 					fn = col[1] # conversion function
 					raw = row[indices[i]] # raw column data
 					convertedRow.append(fn(raw))
+				# add to next batch
 				batch.append(convertedRow)
 				insertedCtr = insertedCtr + 1
 			except:
@@ -126,9 +139,12 @@ def populate(inp, out, options={}):
 					rawRow.append(raw)
 				logwriter.writerow(rawRow + [firstError])
 				invalidCtr = invalidCtr + 1
+
+			# submit batch to the queue
 			if len(batch) >= 10000:
 				q.put(batch)
 				batch = []
+
 		q.put(batch)
 		errorLog.close()
 		logging.info("Completed "+ name +": {} valid, {} invalid messages".format(insertedCtr, invalidCtr))

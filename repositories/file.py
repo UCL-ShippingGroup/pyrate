@@ -1,6 +1,6 @@
 import os
 
-_repo_ = True
+repo = True
 _type_ = "file"
 """
 Description of this plugin for super tool.
@@ -29,6 +29,10 @@ class FileRepository:
 		self.recursive = recursive
 
 	def iterFiles(self):
+		"""
+		Iterate files in this file repository. Returns a generator of 3-tuples, 
+		containing a handle, filename and file extension of the current opened file.
+		"""
 		for root, dirs, files in os.walk(self.root):
 			# iterate files, filtering only allowed extensions
 			for f in files:

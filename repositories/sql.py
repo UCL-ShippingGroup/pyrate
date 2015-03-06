@@ -1,6 +1,6 @@
 import psycopg2
 
-_repo_ = True
+repo = True
 _type_ = "sql"
 
 def load(options, readonly=False):

@@ -1,7 +1,8 @@
-import sql
+from repositories import sql
 import logging
+import psycopg2
 
-_repo_ = True
+repo = True
 _type_ = "aisraw"
 
 def load(options, readonly=False):
@@ -38,6 +39,7 @@ class AISRaw(sql.PgsqlRepository):
 		pass
 
 	def create(self):
+		"""Create the table for the raw AIS data."""
 		with self.conn.cursor() as cur:
 			logging.info("CREATING "+ self.getTableName() +" table")
 			sql = "CREATE TABLE IF NOT EXISTS \""+ self.getTableName() +"\" (" + ','.join(["\"{}\" {}".format(c[0].lower(), c[1]) for c in self.cols]) + ")"
@@ -51,8 +53,12 @@ class AISRaw(sql.PgsqlRepository):
 			tbl = self.getTableName()
 			for idx, cols in self.indices:
 				idxn = tbl.lower() + "_" + idx
-				logging.info("CREATING INDEX "+ idxn +" on table "+ tbl)
-				cur.execute("CREATE INDEX \""+ idxn +"\" ON \""+ tbl +"\" USING btree ("+ ','.join(["\"{}\"".format(s.lower()) for s in cols]) +")" )
+				try:
+					logging.info("CREATING INDEX "+ idxn +" on table "+ tbl)
+					cur.execute("CREATE INDEX \""+ idxn +"\" ON \""+ tbl +"\" USING btree ("+ ','.join(["\"{}\"".format(s.lower()) for s in cols]) +")" )
+				except psycopg2.ProgrammingError:
+					logging.info("Index "+ idxn +" already exists")
+					self.conn.rollback()
 			self.conn.commit()
 
 	def _dropIndices(self):
@@ -65,6 +71,7 @@ class AISRaw(sql.PgsqlRepository):
 			self.conn.commit()
 
 	def truncate(self):
+		"""Delete all data in the AIS table."""
 		with self.conn.cursor() as cur:
 			logging.info("Truncating table "+ self.getTableName())
 			cur.execute("TRUNCATE TABLE \""+ self.getTableName() + "\"")
