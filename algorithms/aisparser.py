@@ -11,7 +11,7 @@ import time
 from datetime import datetime
 
 algo = True
-_name_ = "aisparser"
+export_commands = [('run', 'parse messages from csv into the database.')]
 inputs = ["aiscsv"]
 outputs = ["aisraw", "discardlog"]
 
@@ -60,7 +60,7 @@ ais_csv_columns = [('MMSI', intOrNull),
 		('ETA_hour', intOrNull),
 		('ETA_minute', intOrNull)]
 
-def populate(inp, out, options={}):
+def run(inp, out, options={}):
 	"""Populate the AIS_Raw database with messages from the AIS csv files."""
 
 	files = inp['aiscsv']
@@ -85,9 +85,10 @@ def populate(inp, out, options={}):
 				with db.conn.cursor() as cur:
 					# create a single query to insert list of tuples
 					# note that mogrify generates a binary string which we must first decide to ascii.
+					cols = '(' + ','.join( c[0] for c in ais_csv_columns ) + ')'
 					args = ','.join([cur.mogrify(tuplestr, x).decode('ascii') for x in msgs])
 					try:
-						cur.execute("INSERT INTO \""+ db.getTableName() +"\" VALUES "+ args)
+						cur.execute("INSERT INTO \""+ db.getTableName() +"\" "+ cols +" VALUES "+ args)
 					except Exception as e:
 						logging.warning("Error executing query: {}".format(e))
 			# mark this task as done
