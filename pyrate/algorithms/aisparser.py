@@ -1,14 +1,11 @@
 import os
 import csv
 import logging
-try:
-	import queue
-except ImportError:
-	# python 2 compatability
-	import Queue as queue
+import queue
 import threading
 import time
 from datetime import datetime
+from xml.etree import ElementTree
 
 algo = True
 export_commands = [('run', 'parse messages from csv into the database.')]
@@ -45,7 +42,7 @@ def longstr(s):
 ais_csv_columns = [('MMSI', intOrNull),
 		('Time', parseTimestamp),
 		('Message_ID', intOrNull),
-		('Navigational_status', floatOrNull),
+		('Navigational_status', intOrNull),
 		('SOG', floatOrNull),
 		('Longitude', floatOrNull),
 		('Latitude', floatOrNull),
@@ -59,6 +56,27 @@ ais_csv_columns = [('MMSI', intOrNull),
 		('ETA_day', intOrNull),
 		('ETA_hour', intOrNull),
 		('ETA_minute', intOrNull)]
+
+# xml names differ from csv. This array describes the names in this file which
+# correspond to the csv column names
+ais_xml_colnames = [
+	'mmsi',
+	'date_time',
+	'msg_type',
+	'nav_status',
+	'sog',
+	'lon',
+	'lat',
+	'cog',
+	'heading',
+	'imo',
+	'draught',
+	'destination',
+	'vessel_name',
+	'eta_month',
+	'eta_day',
+	'eta_hour',
+	'eta_minute']
 
 def run(inp, out, options={}):
 	"""Populate the AIS_Raw database with messages from the AIS csv files."""
@@ -103,46 +121,41 @@ def run(inp, out, options={}):
 
 	for fp, name, ext in files.iterFiles():
 		logging.info("Parsing "+ name)
-		# first line is column headers. Use to extract indices of columns we are extracting
-		cols = fp.readline().split(',')
-		indices = []
-		try:
-			for c, f in ais_csv_columns:
-				indices.append(cols.index(c))
-		except Exception as e:
-			logging.warn("Missing columns in file header: {}".format(e))
-			continue
 		
 		# open error log csv file and write header
 		errorLog = open(os.path.join(log.root, name), 'w')
 		logwriter = csv.writer(errorLog, delimiter=',', quotechar='"')
-		logwriter.writerow([c[0] for c in ais_csv_columns] + ["FirstError"]) 
+		logwriter.writerow([c[0] for c in ais_csv_columns] + ["FirstError", "Error_Message"]) 
 
 		# message counters
 		insertedCtr = 0
 		invalidCtr = 0
 		batch = []
 
-		# parse and iterate lines from the current csv file
-		for row in csv.reader(fp, delimiter=',', quotechar='"'):
+		# Select the a file iterator based on file extension
+		if ext == '.csv':
+			iterator = readcsv
+		elif ext == '.xml':
+			iterator = readxml
+		else:
+			logging.warning("Cannot parse file with extension {}".format(ext))
+			continue
+
+		# parse and iterate lines from the current file
+		for row in iterator(fp):
 			try:
 				# convert row for database insertion
 				convertedRow = []
 				for i, col in enumerate(ais_csv_columns):
 					fn = col[1] # conversion function
-					raw = row[indices[i]] # raw column data
-					convertedRow.append(fn(raw))
+					convertedRow.append(fn(row[i]))
 				# add to next batch
 				batch.append(convertedRow)
 				insertedCtr = insertedCtr + 1
-			except:
+			except Exception as e:
 				# invalid data in row. Write it to error log
-				rawRow = []
 				firstError = ais_csv_columns[i][0]
-				for i, col in enumerate(ais_csv_columns):
-					raw = row[indices[i]] # raw column data
-					rawRow.append(raw)
-				logwriter.writerow(rawRow + [firstError])
+				logwriter.writerow(row + [firstError, "{}".format(e)])
 				invalidCtr = invalidCtr + 1
 
 			# submit batch to the queue
@@ -164,3 +177,33 @@ def run(inp, out, options={}):
 	logging.info("Rebuilding table indices...")
 	db._createIndices()
 	logging.info("Finished building indices, time elapsed = {}s".format(time.time() - start))
+
+def readcsv(fp):
+	# first line is column headers. Use to extract indices of columns we are extracting
+	cols = fp.readline().split(',')
+	indices = []
+	try:
+		for c, f in ais_csv_columns:
+			indices.append(cols.index(c))
+	except Exception as e:
+		raise RuntimeError("Missing columns in file header: {}".format(e))
+
+	for row in csv.reader(fp, delimiter=',', quotechar='"'):
+		rowsubset = []
+		for i, col in enumerate(ais_csv_columns):
+			raw = row[indices[i]] # raw column data
+			rowsubset.append(raw)
+		yield rowsubset
+
+def readxml(fp):
+
+	current = ["" for i in ais_xml_colnames]
+	# iterate xml 'end' events
+	for event, elem in ElementTree.iterparse(fp):
+		# end of aismessage
+		if elem.tag == 'aismessage':
+			yield current
+			current = ["" for i in ais_xml_colnames]
+		else:
+			if elem.tag in ais_xml_colnames and elem.text != None:
+				current[ais_xml_colnames.index(elem.tag)] = elem.text
