@@ -1,4 +1,4 @@
-from repositories import sql
+from pyrate.repositories import sql
 import logging
 import psycopg2
 

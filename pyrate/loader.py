@@ -3,10 +3,7 @@ import imp
 import pkgutil
 import inspect
 import contextlib
-try:
-	from configparser import ConfigParser
-except ImportError:
-	from ConfigParser import SafeConfigParser as ConfigParser
+from configparser import ConfigParser
 
 def loadModule(name, paths):
 	fp, pathname, description = imp.find_module(name, paths)
@@ -44,9 +41,7 @@ class Loader:
 		# check which repos we have drivers for
 		repoConfDict = {}
 		for r in repoConfig:
-			conf = {}
-			for name, value in config.items(r):
-				conf[name] = value
+			conf = config[r]
 			if not 'type' in conf:
 				logging.warning("Repository "+ r +" does not specify a type in the config file.")
 			elif not conf['type'] in repoDrivers:

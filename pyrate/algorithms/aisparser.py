@@ -106,8 +106,12 @@ def run(inp, out, options={}):
 		# first line is column headers. Use to extract indices of columns we are extracting
 		cols = fp.readline().split(',')
 		indices = []
-		for c, f in ais_csv_columns:
-			indices.append(cols.index(c))
+		try:
+			for c, f in ais_csv_columns:
+				indices.append(cols.index(c))
+		except Exception as e:
+			logging.warn("Missing columns in file header: {}".format(e))
+			continue
 		
 		# open error log csv file and write header
 		errorLog = open(os.path.join(log.root, name), 'w')
