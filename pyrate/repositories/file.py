@@ -1,5 +1,7 @@
 import os
 import logging
+import zipfile
+import io
 
 export_commands = [('status', 'report status of this repository.')]
 
@@ -11,19 +13,25 @@ def load(options, readonly=False):
 	else:
 		allowedExtensions = None
 
-	if 'resursive' in options:
-		recursive = bool(options['resursive'])
+	if 'recursive' in options:
+		recursive = bool(options['recursive'])
 	else:
 		recursive = True
 
-	return FileRepository(options['path'], allowedExtensions = allowedExtensions, recursive = recursive)
+	if 'unzip' in options:
+		unzip = bool(options['unzip'])
+	else:
+		unzip = False
+
+	return FileRepository(options['path'], allowedExtensions = allowedExtensions, recursive = recursive, unzip = unzip)
 
 class FileRepository:
 
-	def __init__(self, path, allowedExtensions=None, recursive=True):
+	def __init__(self, path, allowedExtensions=None, recursive=True, unzip=False):
 		self.root = path
 		self.allowedExtensions = allowedExtensions
 		self.recursive = recursive
+		self.unzip = unzip
 
 	def __enter__(self):
 		pass
@@ -47,6 +55,15 @@ class FileRepository:
 				if self.allowedExtensions == None or ext in self.allowedExtensions:
 					with open(os.path.join(root, f), 'r') as fp:
 						yield (fp, f, ext)
+				# zip file auto-extract
+				elif self.unzip and ext == '.zip':
+					with zipfile.ZipFile(os.path.join(root, f), 'r') as z:
+						for zname in z.namelist():
+							zfname, ext = os.path.splitext(zname)
+							if self.allowedExtensions == None or ext in self.allowedExtensions:
+								with z.open(zname, 'r') as fp:
+									# zipfile returns a binary file, so we require a TextIOWrapper to decode it
+									yield (io.TextIOWrapper(fp, encoding='ascii'), zname, ext)
 
 			# stop after first iteration if not recursive
 			if not self.recursive:
