@@ -102,7 +102,7 @@ def run(inp, out, options={}):
 			if n > 0:
 				with db.conn.cursor() as cur:
 					# create a single query to insert list of tuples
-					# note that mogrify generates a binary string which we must first decide to ascii.
+					# note that mogrify generates a binary string which we must first decode to ascii.
 					cols = '(' + ','.join( c[0] for c in ais_csv_columns ) + ')'
 					args = ','.join([cur.mogrify(tuplestr, x).decode('ascii') for x in msgs])
 					try:
