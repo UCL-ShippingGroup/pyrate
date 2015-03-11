@@ -102,7 +102,7 @@ def run(inp, out, options={}):
 			n = len(msgs)
 			if n > 0:
 				try:
-					db.dirty.insertRowsBatch(msgs, cols)
+					db.dirty.insertRowsBatch(msgs)
 				except Exception as e:
 					logging.warning("Error executing query: {}".format(e))
 			# mark this task as done
@@ -148,10 +148,10 @@ def run(inp, out, options={}):
 		for row in iterator(fp):
 			try:
 				# convert row for database insertion
-				convertedRow = []
+				convertedRow = {}
 				for i, col in enumerate(ais_csv_columns):
 					fn = col[1] # conversion function
-					convertedRow.append(fn(row[i]))
+					convertedRow[col[0].lower()] = fn(row[i])
 				# add to next batch
 				batch.append(convertedRow)
 			except Exception as e:
@@ -166,7 +166,7 @@ def run(inp, out, options={}):
 				q.put(batch)
 				batch = []
 
-		db.sources.insertRow([name, ext, invalidCtr, totalCtr], ['filename', 'ext', 'invalid', 'total'])
+		db.sources.insertRow({'filename': name, 'ext': ext, 'invalid': invalidCtr, 'total': totalCtr})
 
 		q.put(batch)
 		errorLog.close()
