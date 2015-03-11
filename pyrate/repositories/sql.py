@@ -1,4 +1,5 @@
 import psycopg2
+import logging
 
 def load(options, readonly=False):
 	return PgsqlRepository(host, database, user, password)
@@ -22,5 +23,61 @@ class PgsqlRepository:
 	def __exit__(self, exc_type, exc_value, traceback):
 		self.conn.close()
 
-	def close(self):
-		self.conn.close()
+class Table:
+
+	def __init__(self, db, name, cols, indices = []):
+		self.db = db
+		self.name = name
+		self.cols = cols
+		self.indices = indices
+
+	def getName(self):
+		return self.name
+
+	def create(self):
+		with self.db.conn.cursor() as cur:
+			logging.info("CREATING "+ self.name +" table")
+			sql = "CREATE TABLE IF NOT EXISTS \""+ self.name +"\" (" + ','.join(["\"{}\" {}".format(c[0].lower(), c[1]) for c in self.cols]) + ")"
+			cur.execute(sql)
+			self.db.conn.commit()
+
+		self.createIndices()
+
+	def createIndices(self):
+		with self.db.conn.cursor() as cur:
+			tbl = self.name
+			for idx, cols in self.indices:
+				idxn = tbl.lower() + "_" + idx
+				try:
+					logging.info("CREATING INDEX "+ idxn +" on table "+ tbl)
+					cur.execute("CREATE INDEX \""+ idxn +"\" ON \""+ tbl +"\" USING btree ("+ ','.join(["\"{}\"".format(s.lower()) for s in cols]) +")" )
+				except psycopg2.ProgrammingError:
+					logging.info("Index "+ idxn +" already exists")
+					self.db.conn.rollback()
+			self.db.conn.commit()
+
+	def dropIndices(self):
+		with self.db.conn.cursor() as cur:
+			tbl = self.name
+			for idx, cols in self.indices:
+				idxn = tbl.lower() + "_" + idx
+				logging.info("Dropping index: "+ idxn + " on table "+ tbl)
+				cur.execute("DROP INDEX IF EXISTS \""+ idxn +"\"")
+			self.db.conn.commit()
+
+	def truncate(self):
+		"""Delete all data in the table."""
+		with self.db.conn.cursor() as cur:
+			logging.info("Truncating table "+ self.name)
+			cur.execute("TRUNCATE TABLE \""+ self.name + "\"")
+			self.db.conn.commit()
+
+	def status(self):
+		with self.db.conn.cursor() as cur:
+			try:
+				cur.execute("SELECT COUNT(*) FROM \""+ self.name +"\"")
+				self.db.conn.commit()
+				return cur.fetchone()[0]
+			except psycopg2.ProgrammingError:
+				self.db.conn.rollback()
+				return -1

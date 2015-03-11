@@ -10,7 +10,7 @@ from xml.etree import ElementTree
 algo = True
 export_commands = [('run', 'parse messages from csv into the database.')]
 inputs = ["aiscsv"]
-outputs = ["aisraw", "discardlog"]
+outputs = ["aisdb", "baddata"]
 
 def parseTimestamp(s):
 	return datetime.strptime(s, '%Y%m%d_%H%M%S')
@@ -82,11 +82,12 @@ def run(inp, out, options={}):
 	"""Populate the AIS_Raw database with messages from the AIS csv files."""
 
 	files = inp['aiscsv']
-	db =  out['aisraw']
-	log = out['discardlog']
+	db =  out['aisdb']
+	log = out['baddata']
 
 	# drop indexes for faster insert
-	db._dropIndices()
+	db.clean.dropIndices()
+	db.dirty.dropIndices()
 
 	# queue for messages to be inserted into db
 	q = queue.Queue(maxsize=10)
@@ -106,7 +107,7 @@ def run(inp, out, options={}):
 					cols = '(' + ','.join( c[0] for c in ais_csv_columns ) + ')'
 					args = ','.join([cur.mogrify(tuplestr, x).decode('ascii') for x in msgs])
 					try:
-						cur.execute("INSERT INTO \""+ db.getTableName() +"\" "+ cols +" VALUES "+ args)
+						cur.execute("INSERT INTO \""+ db.dirty.getName() +"\" "+ cols +" VALUES "+ args)
 					except Exception as e:
 						logging.warning("Error executing query: {}".format(e))
 			# mark this task as done
@@ -175,7 +176,8 @@ def run(inp, out, options={}):
 	start = time.time()
 
 	logging.info("Rebuilding table indices...")
-	db._createIndices()
+	db.clean.createIndices()
+	db.dirty.createIndices()
 	logging.info("Finished building indices, time elapsed = {}s".format(time.time() - start))
 
 def readcsv(fp):
