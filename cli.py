@@ -7,7 +7,7 @@ logger.setLevel(logging.DEBUG)
 
 # load tool components
 config = loader.default_config
-config.read(['default.conf','aistool.conf'])
+config.read(['aistool.conf'])
 l = loader.Loader(config)
 
 def listComponents(args):
