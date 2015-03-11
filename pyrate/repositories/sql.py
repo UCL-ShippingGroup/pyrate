@@ -81,3 +81,24 @@ class Table:
 			except psycopg2.ProgrammingError:
 				self.db.conn.rollback()
 				return -1
+
+	def insertRow(self, data, cols = None):
+		with self.db.conn.cursor() as cur:
+			if cols != None:
+				columnlist = '(' + ','.join(cols) + ')'
+			else:
+				columnlist = ''
+			tuplestr = "(" + ",".join("%s" for i in data) + ")"
+			cur.execute("INSERT INTO " + self.name + " "+ columnlist + " VALUES "+ tuplestr, data)
+
+	def insertRowsBatch(self, rows, cols = None):
+		with self.db.conn.cursor() as cur:
+			if cols != None:
+				columnlist = '(' + ','.join(cols) + ')'
+			else:
+				columnlist = ''
+			tuplestr = "(" + ",".join("%s" for i in rows[0]) + ")"
+			# create a single query to insert list of tuples
+			# note that mogrify generates a binary string which we must first decode to ascii.
+			args = ','.join([cur.mogrify(tuplestr, x).decode('ascii') for x in rows])
+			cur.execute("INSERT INTO " + self.name + " "+ columnlist + " VALUES "+ args)

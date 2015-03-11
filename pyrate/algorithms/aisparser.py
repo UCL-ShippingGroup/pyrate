@@ -95,21 +95,16 @@ def run(inp, out, options={}):
 	# worker thread which takes batches of tuples from the queue to be
 	# inserted into db
 	def sqlworker():
-		tuplestr = "(" + ",".join("%s" for i in ais_csv_columns) + ")"
+		cols = [c[0] for c in ais_csv_columns]
 		while True:
 			msgs = q.get()
 
 			n = len(msgs)
 			if n > 0:
-				with db.conn.cursor() as cur:
-					# create a single query to insert list of tuples
-					# note that mogrify generates a binary string which we must first decode to ascii.
-					cols = '(' + ','.join( c[0] for c in ais_csv_columns ) + ')'
-					args = ','.join([cur.mogrify(tuplestr, x).decode('ascii') for x in msgs])
-					try:
-						cur.execute("INSERT INTO \""+ db.dirty.getName() +"\" "+ cols +" VALUES "+ args)
-					except Exception as e:
-						logging.warning("Error executing query: {}".format(e))
+				try:
+					db.dirty.insertRowsBatch(msgs, cols)
+				except Exception as e:
+					logging.warning("Error executing query: {}".format(e))
 			# mark this task as done
 			q.task_done()
 			db.conn.commit()
@@ -171,13 +166,12 @@ def run(inp, out, options={}):
 				q.put(batch)
 				batch = []
 
-		with db.conn.cursor() as cur:
-			cur.execute("INSERT INTO " + db.sources.name + " (filename, ext, invalid, total) VALUES (%s,%s,%s,%s)", [name, ext, invalidCtr, totalCtr])
+		db.sources.insertRow([name, ext, invalidCtr, totalCtr], ['filename', 'ext', 'invalid', 'total'])
 
 		q.put(batch)
 		errorLog.close()
 		db.conn.commit()
-		logging.info("Completed "+ name +": {} valid, {} invalid messages".format(insertedCtr, invalidCtr))
+		logging.info("Completed "+ name +": {} valid, {} invalid messages".format(totalCtr, invalidCtr))
 
 	# wait for queued tasks to finish
 	q.join()
