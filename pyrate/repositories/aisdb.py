@@ -31,7 +31,8 @@ class AISdb(sql.PgsqlRepository):
 			('ETA_month', 'integer'),
 			('ETA_day', 'integer'),
 			('ETA_hour', 'integer'),
-			('ETA_minute', 'integer')
+			('ETA_minute', 'integer'),
+			('source', 'smallint')
 		],
 		'indices': [
 			('dt_idx', ['Time']),
@@ -61,7 +62,8 @@ class AISdb(sql.PgsqlRepository):
 			('ETA_month', 'integer'),
 			('ETA_day', 'integer'),
 			('ETA_hour', 'integer'),
-			('ETA_minute', 'integer')
+			('ETA_minute', 'integer'),
+			('source', 'smallint')
 		],
 		'indices': [
 			('dt_idx', ['Time']),

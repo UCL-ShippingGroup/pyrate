@@ -6,6 +6,7 @@ import threading
 import time
 from datetime import datetime
 from xml.etree import ElementTree
+from pyrate import utils
 
 algo = True
 export_commands = [('run', 'parse messages from csv into the database.')]
@@ -36,6 +37,21 @@ def longstr(s):
 	if len(s) > 255:
 		return s.substring(0,254)
 	return s
+
+def setNullOnFail(row, col, test):
+	if not row[col.lower()] == None and not test(row[col.lower()]):
+		row[col.lower()] = None
+
+containsLatLon = set([1,2,3,4,9,11,17,18,19,21,27])
+def latLonCheck(row):
+	if row['Message_ID'.lower()] in containsLatLon:
+		return utils.isValidLongitude(row['Longitude'.lower()]) and utils.isValidLatitude(row['Latitude'.lower()])
+	else:
+		row['Longitude'.lower()] = None
+		row['Latitude'.lower()] = None
+
+def checkIMO(imo):
+	return imo is None or imo is '' or utils.isValidIMO(imo)
 
 # specifies columns to take from raw data, and functions to convert them into
 # suitable type for the database.
@@ -78,6 +94,34 @@ ais_xml_colnames = [
 	'eta_hour',
 	'eta_minute']
 
+def rowValidator(validQ, cleanQ, dirtyQ):
+	constraints = [
+		('MMSI', utils.isValidMMSI),
+		('Message_ID', utils.isValidMessageId),
+		('IMO', checkIMO)
+	]
+	while True:
+		row = validQ.get()
+		clean = True
+		# check validity constraints for malformed data
+		for key, fn in constraints:
+			if not fn(row[key.lower()]):
+				clean = False
+				#logging.debug("Failed "+key+" check, value {}".format(row[key.lower()]))
+				break
+		clean = clean and latLonCheck(row)
+		if not clean:
+			dirtyQ.put(row)
+		else:
+			# clean data for clean db
+			setNullOnFail(row, 'Navigational_status', utils.isValidNavigationalStatus)
+			setNullOnFail(row, 'SOG', utils.isValidSOG)
+			setNullOnFail(row, 'COG', utils.isValidCOG)
+			setNullOnFail(row, 'Heading', utils.isValidHeading)
+			cleanQ.put(row)
+
+		validQ.task_done()
+
 def run(inp, out, options={}):
 	"""Populate the AIS_Raw database with messages from the AIS csv files."""
 
@@ -90,28 +134,39 @@ def run(inp, out, options={}):
 	db.dirty.dropIndices()
 
 	# queue for messages to be inserted into db
-	q = queue.Queue(maxsize=10)
+	validQ = queue.Queue(maxsize=5000)
+	dirtyQ = queue.Queue(maxsize=5000)
+	cleanQ = queue.Queue(maxsize=5000)
 
 	# worker thread which takes batches of tuples from the queue to be
 	# inserted into db
-	def sqlworker():
+	def sqlworker(q, table):
 		cols = [c[0] for c in ais_csv_columns]
 		while True:
-			msgs = q.get()
+			msgs = [q.get()]
+			while not q.empty():
+				msgs.append(q.get(timeout=0.5))
 
 			n = len(msgs)
 			if n > 0:
+				#logging.debug("Inserting {} rows into {}".format(n, table.name))
 				try:
-					db.dirty.insertRowsBatch(msgs)
+					table.insertRowsBatch(msgs)
 				except Exception as e:
 					logging.warning("Error executing query: {}".format(e))
 			# mark this task as done
-			q.task_done()
+			for i in range(n):
+				q.task_done()
 			db.conn.commit()
 
-	t = threading.Thread(target = sqlworker)
-	t.daemon = True
-	t.start()
+	# set up processing pipeline threads
+	cleanThread = threading.Thread(target = sqlworker, daemon=True, args=(cleanQ, db.clean))
+	dirtyThread = threading.Thread(target = sqlworker, daemon=True, args=(dirtyQ, db.dirty))
+	validThread = threading.Thread(target = rowValidator, daemon=True, args=(validQ, cleanQ, dirtyQ))
+	
+	validThread.start()
+	dirtyThread.start()
+	cleanThread.start()
 
 	start = time.time()
 
@@ -133,7 +188,6 @@ def run(inp, out, options={}):
 		# message counters
 		totalCtr = 0
 		invalidCtr = 0
-		batch = []
 
 		# Select the a file iterator based on file extension
 		if ext == '.csv':
@@ -152,8 +206,9 @@ def run(inp, out, options={}):
 				for i, col in enumerate(ais_csv_columns):
 					fn = col[1] # conversion function
 					convertedRow[col[0].lower()] = fn(row[i])
+				convertedRow['source'] = 0
 				# add to next batch
-				batch.append(convertedRow)
+				validQ.put(convertedRow)
 			except Exception as e:
 				# invalid data in row. Write it to error log
 				firstError = ais_csv_columns[i][0]
@@ -161,20 +216,17 @@ def run(inp, out, options={}):
 				invalidCtr = invalidCtr + 1
 
 			totalCtr = totalCtr + 1
-			# submit batch to the queue
-			if len(batch) >= 10000:
-				q.put(batch)
-				batch = []
 
 		db.sources.insertRow({'filename': name, 'ext': ext, 'invalid': invalidCtr, 'total': totalCtr})
 
-		q.put(batch)
 		errorLog.close()
-		db.conn.commit()
 		logging.info("Completed "+ name +": {} valid, {} invalid messages".format(totalCtr, invalidCtr))
 
 	# wait for queued tasks to finish
-	q.join()
+	validQ.join()
+	dirtyQ.join()
+	cleanQ.join()
+	db.conn.commit()
 
 	logging.info("Parsing complete, time elapsed = {}s".format(time.time() - start))
 
