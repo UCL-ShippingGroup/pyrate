@@ -77,11 +77,8 @@ class AISdb(sql.PgsqlRepository):
 			('ID', 'SERIAL PRIMARY KEY'),
 			('filename', 'TEXT'),
 			('ext', 'TEXT'),
-			('path', 'TEXT'),
 			('invalid', 'integer'),
-			('dirty', 'integer'),
-			('clean', 'integer')
-		]
+			('total', 'integer')		]
 	}
 
 	def __init__(self, options, readonly=False):

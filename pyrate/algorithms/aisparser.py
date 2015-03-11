@@ -121,6 +121,13 @@ def run(inp, out, options={}):
 	start = time.time()
 
 	for fp, name, ext in files.iterFiles():
+		# check if we've already parsed this file
+		with db.conn.cursor() as cur:
+			cur.execute("SELECT COUNT(*) FROM " + db.sources.name + " WHERE filename = %s", [name])
+			if cur.fetchone()[0] > 0:
+				logging.info("Already parsed "+ name +", skipping...")
+				continue
+
 		logging.info("Parsing "+ name)
 		
 		# open error log csv file and write header
@@ -129,7 +136,7 @@ def run(inp, out, options={}):
 		logwriter.writerow([c[0] for c in ais_csv_columns] + ["FirstError", "Error_Message"]) 
 
 		# message counters
-		insertedCtr = 0
+		totalCtr = 0
 		invalidCtr = 0
 		batch = []
 
@@ -152,20 +159,24 @@ def run(inp, out, options={}):
 					convertedRow.append(fn(row[i]))
 				# add to next batch
 				batch.append(convertedRow)
-				insertedCtr = insertedCtr + 1
 			except Exception as e:
 				# invalid data in row. Write it to error log
 				firstError = ais_csv_columns[i][0]
 				logwriter.writerow(row + [firstError, "{}".format(e)])
 				invalidCtr = invalidCtr + 1
 
+			totalCtr = totalCtr + 1
 			# submit batch to the queue
 			if len(batch) >= 10000:
 				q.put(batch)
 				batch = []
 
+		with db.conn.cursor() as cur:
+			cur.execute("INSERT INTO " + db.sources.name + " (filename, ext, invalid, total) VALUES (%s,%s,%s,%s)", [name, ext, invalidCtr, totalCtr])
+
 		q.put(batch)
 		errorLog.close()
+		db.conn.commit()
 		logging.info("Completed "+ name +": {} valid, {} invalid messages".format(insertedCtr, invalidCtr))
 
 	# wait for queued tasks to finish

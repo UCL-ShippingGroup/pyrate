@@ -1,4 +1,5 @@
 import os
+import logging
 
 export_commands = [('status', 'report status of this repository.')]
 
@@ -38,6 +39,7 @@ class FileRepository:
 		Iterate files in this file repository. Returns a generator of 3-tuples, 
 		containing a handle, filename and file extension of the current opened file.
 		"""
+		logging.debug("Iterating files in "+ self.root)
 		for root, dirs, files in os.walk(self.root):
 			# iterate files, filtering only allowed extensions
 			for f in files:
