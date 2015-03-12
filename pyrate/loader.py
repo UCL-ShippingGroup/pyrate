@@ -89,7 +89,7 @@ class Loader:
         """Returns a set of the names of available algorithms"""
         return self.algorithms.keys()
 
-    def execute_repository_command(self, reponame, command):
+    def execute_repository_command(self, reponame, command, **args):
         """Execute the specified command on the specified repository."""
         if not command in [c[0] for c in self.get_repository_commands(reponame)]:
             raise ValueError("Invalid command {} for repository {}".format(command, reponame))
@@ -100,9 +100,9 @@ class Loader:
             raise RuntimeError("Unable to find method {} in repository {}: {}".format(command, reponame, repo))
         with repo:
             # call command
-            fns[0][1]()
+            fns[0][1](**args)
 
-    def execute_algorithm_command(self, algname, command):
+    def execute_algorithm_command(self, algname, command, **args):
         """Execute the specified command on the specified algorithm"""
         alg = self.get_algorithm(algname)
         fns = inspect.getmembers(alg, lambda x: inspect.isfunction(x) and x.__name__ == command)
@@ -124,7 +124,7 @@ class Loader:
                 stack.enter_context(inputs[i])
             for i in outputs:
                 stack.enter_context(outputs[i])
-            fns[0][1](inputs, outputs)
+            fns[0][1](inputs, outputs, **args)
 
     def get_data_repository(self, name, readonly=False):
         """Returns a loaded instance of the specified data repository."""
