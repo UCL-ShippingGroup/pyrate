@@ -141,7 +141,7 @@ def validate_row(row):
     # check lat long for messages which should contain it
     if row[MESSAGE_ID] in CONTAINS_LAT_LON:
         if not (utils.valid_longitude(row[LONGITUDE]) and utils.valid_latitude(row[LATITUDE])):
-            raise ValueError("Row invalid (lat,long)")
+            raise ValueError("Row invalid (lat,lon)")
     # otherwise set them to None
     else:
         row[LONGITUDE] = None
@@ -155,7 +155,15 @@ def validate_row(row):
     return row
 
 def get_data_source(name):
-    return 0
+    """Guesses data source from file name. Returns an integer corresponding to this source.
+
+    If the name contains 'terr' then we guess terrestrial data, otherwise we assume satellite."""
+    if name.find('terr') != -1:
+        # terrestrial
+        return 1
+    else:
+        # assume satellite
+        return 0
 
 def run(inp, out, dropindices=True):
     """Populate the AIS_Raw database with messages from the AIS csv files."""
@@ -191,16 +199,12 @@ def run(inp, out, dropindices=True):
             # mark this task as done
             for i in range(n):
                 q.task_done()
-            db.conn.commit()
 
     # set up processing pipeline threads
     clean_thread = threading.Thread(target=sqlworker, daemon=True,
                                    args=(cleanq, db.clean))
     dirty_thread = threading.Thread(target=sqlworker, daemon=True,
                                    args=(dirtyq, db.dirty))
-    #validThread = threading.Thread(target=rowValidator, daemon=True, args=(validQ, cleanQ, dirtyQ))
-    
-    #validThread.start()
     dirty_thread.start()
     clean_thread.start()
 
@@ -213,11 +217,36 @@ def run(inp, out, dropindices=True):
             if cur.fetchone()[0] > 0:
                 logging.info("Already parsed "+ name +", skipping...")
                 continue
-
-        logging.info("Parsing "+ name)
         
-        # open error log csv file and write header
-        errorlog = open(os.path.join(log.root, name), 'w')
+        # parse file
+        try:
+            invalid_ctr, clean_ctr, dirty_ctr, duration = parse_file(fp, name, ext, os.path.join(log.root, name), cleanq, dirtyq)
+            db.sources.insert_row({'filename': name, 'ext': ext, 'invalid': invalid_ctr, 'clean': clean_ctr, 'dirty': dirty_ctr})
+            db.conn.commit()
+            logging.info("Completed "+ name +": %d clean, %d dirty, %d invalid messages, %fs", clean_ctr, dirty_ctr, invalid_ctr, duration)
+        except RuntimeError as error:
+            logging.warn("Error parsing file %s: %s", name, repr(error))
+
+    # wait for queued tasks to finish
+    dirtyq.join()
+    cleanq.join()
+    db.conn.commit()
+
+    logging.info("Parsing complete, time elapsed = %fs", time.time() - start)
+
+    if dropindices:
+        start = time.time()
+        logging.info("Rebuilding table indices...")
+        db.clean.create_indices()
+        db.dirty.create_indices()
+        logging.info("Finished building indices, time elapsed = %fs", time.time() - start)
+
+def parse_file(fp, name, ext, baddata_logfile, cleanq, dirtyq):
+    filestart = time.time()
+    logging.info("Parsing "+ name)
+
+    # open error log csv file and write header
+    with open(baddata_logfile, 'w') as errorlog:
         logwriter = csv.writer(errorlog, delimiter=',', quotechar='"')
         logwriter.writerow(AIS_CSV_COLUMNS + ["Error_Message"]) 
 
@@ -232,8 +261,7 @@ def run(inp, out, dropindices=True):
         elif ext == '.xml':
             iterator = readxml
         else:
-            logging.warning("Cannot parse file with extension %s", ext)
-            continue
+            raise RuntimeError("Cannot parse file with extension %s"% ext)
 
         # infer the data source from the file name
         source = get_data_source(name)
@@ -260,24 +288,7 @@ def run(inp, out, dropindices=True):
                 dirtyq.put(converted_row)
                 dirty_ctr = dirty_ctr + 1
 
-        db.sources.insert_row({'filename': name, 'ext': ext, 'invalid': invalid_ctr, 'clean': clean_ctr, 'dirty': dirty_ctr})
-
-        errorlog.close()
-        logging.info("Completed "+ name +": %d clean, %d dirty, %d invalid messages", clean_ctr, dirty_ctr, invalid_ctr)
-
-    # wait for queued tasks to finish
-    dirtyq.join()
-    cleanq.join()
-    db.conn.commit()
-
-    logging.info("Parsing complete, time elapsed = %fs", time.time() - start)
-
-    if dropindices:
-        start = time.time()
-        logging.info("Rebuilding table indices...")
-        db.clean.create_indices()
-        db.dirty.create_indices()
-        logging.info("Finished building indices, time elapsed = %fs", time.time() - start)
+    return (invalid_ctr, clean_ctr, dirty_ctr, time.time() - filestart)
 
 def readcsv(fp):
     # first line is column headers. Use to extract indices of columns we are extracting
