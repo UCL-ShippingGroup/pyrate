@@ -1,3 +1,7 @@
+"""This module provides the Loader class which loads a pyrate session from a
+configuation file. This session can then run tasks on data repositories and
+algorithms."""
+
 import logging
 import imp
 import pkgutil
@@ -5,114 +9,127 @@ import inspect
 import contextlib
 from configparser import ConfigParser
 
-def loadModule(name, paths):
-	fp, pathname, description = imp.find_module(name, paths)
-	if fp != None:
-		return imp.load_module(name, fp, pathname, description)
-	else:
-		return None
+def load_module(name, paths):
+    """Load module name using the given search paths."""
+    handle, pathname, description = imp.find_module(name, paths)
+    if handle != None:
+        return imp.load_module(name, handle, pathname, description)
+    else:
+        return None
 
-def loadAllModules(paths):
-	modules = {}
-	for importer, name, package in pkgutil.walk_packages(paths):
-		try:
-			modules[name] = loadModule(name, paths)
-		except ImportError as e:
-			logging.warn("Error importing module "+ name +": {}".format(e))
-	return modules
+def load_all_modules(paths):
+    """Load all modules on the given paths."""
+    modules = {}
+    for _, name, _ in pkgutil.walk_packages(paths):
+        try:
+            modules[name] = load_module(name, paths)
+        except ImportError as error:
+            logging.warn("Error importing module "+ name +": {}".format(error))
+    return modules
 
-default_config = ConfigParser()
-default_config.add_section('globals')
-default_config.set('globals', 'repos', 'pyrate/repositories')
-default_config.set('globals', 'algos', 'pyrate/algorithms')
+DEFAULT_CONFIG = ConfigParser()
+DEFAULT_CONFIG.add_section('globals')
+DEFAULT_CONFIG.set('globals', 'repos', 'pyrate/repositories')
+DEFAULT_CONFIG.set('globals', 'algos', 'pyrate/algorithms')
 
 class Loader:
+    """The Loader joins together data repositories and algorithms, 
+    and executes operations on them."""
 
-	def __init__(self, config):
-		repopaths = config.get('globals', 'repos')
-		repopaths = repopaths.split(',')
+    def __init__(self, config):
+        repopaths = config.get('globals', 'repos')
+        repopaths = repopaths.split(',')
 
-		# load repo drivers from repopaths
-		repoDrivers = loadAllModules(repopaths)
+        # load repo drivers from repopaths
+        repo_drivers = load_all_modules(repopaths)
 
-		# get repo configurations from config
-		repoConfig = set(config.sections()) - set(['globals'])
+        # get repo configurations from config
+        repo_config = set(config.sections()) - set(['globals'])
 
-		# check which repos we have drivers for
-		repoConfDict = {}
-		for r in repoConfig:
-			conf = config[r]
-			if not 'type' in conf:
-				logging.warning("Repository "+ r +" does not specify a type in the config file.")
-			elif not conf['type'] in repoDrivers:
-				logging.warning("Driver of type "+ conf['type'] +" for repository "+ r +" not found.")
-			else:
-				repoConfDict[r] = conf
+        # check which repos we have drivers for
+        repo_conf_dict = {}
+        for repo_name in repo_config:
+            conf = config[repo_name]
+            if not 'type' in conf:
+                logging.warning("Repository "+ repo_name +" does not specify a type in the config file.")
+            elif not conf['type'] in repo_drivers:
+                logging.warning("Driver of type "+ conf['type'] +" for repository "+ repo_name +" not found.")
+            else:
+                repo_conf_dict[repo_name] = conf
 
-		algopaths = config.get('globals', 'algos')
-		algopaths = algopaths.split(',')
+        algopaths = config.get('globals', 'algos')
+        algopaths = algopaths.split(',')
 
-		# load algorithms from algopaths
-		algorithms = loadAllModules(algopaths)
+        # load algorithms from algopaths
+        algorithms = load_all_modules(algopaths)
 
-		self.repoDrivers = repoDrivers
-		self.repoConfig = repoConfDict
-		self.algorithms = algorithms
+        self.repo_drivers = repo_drivers
+        self.repo_config = repo_conf_dict
+        self.algorithms = algorithms
 
-	def getDataRepositories(self):
-		return self.repoConfig.keys()
+    def get_data_repositories(self):
+        """Returns a set of the names of available data repositories"""
+        return self.repo_config.keys()
 
-	def getRepositoryCommands(self, repoName):
-		try:
-			return self.repoDrivers[self.repoConfig[repoName]['type']].export_commands
-		except AttributeError:
-			return []
+    def get_repository_commands(self, repo_name):
+        """Returns a list of available commands for the specified repository"""
+        try:
+            return self.repo_drivers[self.repo_config[repo_name]['type']].EXPORT_COMMANDS
+        except AttributeError:
+            return []
 
-	def getAlgorithmCommands(self, algname):
-		try:
-			return self.algorithms[algname].export_commands
-		except AttributeError:
-			return []
+    def get_algorithm_commands(self, algname):
+        """Returns a list of available commands for the specified algorithm"""
+        try:
+            return self.algorithms[algname].EXPORT_COMMANDS
+        except AttributeError:
+            return []
 
-	def getAlgorithms(self):
-		return self.algorithms.keys()
+    def get_algorithms(self):
+        """Returns a set of the names of available algorithms"""
+        return self.algorithms.keys()
 
-	def executeRepositoryCommand(self, reponame, command):
-		if not command in [c[0] for c in self.getRepositoryCommands(reponame)]:
-			raise ValueError("Invalid command {} for repository {}".format(command, reponame))
-		# load repostory class
-		repo = self.getDataRepository(reponame)
-		fns = inspect.getmembers(repo, lambda x : inspect.ismethod(x) and x.__name__ == command)
-		if len(fns) != 1:
-			raise RuntimeError("Unable to find method {} in repository {}: ".format(command, reponame, repo))
-		with repo:
-			# call command
-			fns[0][1]()
+    def execute_repository_command(self, reponame, command):
+        """Execute the specified command on the specified repository."""
+        if not command in [c[0] for c in self.get_repository_commands(reponame)]:
+            raise ValueError("Invalid command {} for repository {}".format(command, reponame))
+        # load repostory class
+        repo = self.get_data_repository(reponame)
+        fns = inspect.getmembers(repo, lambda x: inspect.ismethod(x) and x.__name__ == command)
+        if len(fns) != 1:
+            raise RuntimeError("Unable to find method {} in repository {}: {}".format(command, reponame, repo))
+        with repo:
+            # call command
+            fns[0][1]()
 
-	def executeAlgorithmCommand(self, algname, command):
+    def execute_algorithm_command(self, algname, command):
+        """Execute the specified command on the specified algorithm"""
+        alg = self.get_algorithm(algname)
+        fns = inspect.getmembers(alg, lambda x: inspect.isfunction(x) and x.__name__ == command)
+        if len(fns) != 1:
+            raise RuntimeError("Unable to find function {} in algorithm {}: {}".format(command, algname, alg))
 
-		alg = self.getAlgorithm(algname)
-		fns = inspect.getmembers(alg, lambda x : inspect.isfunction(x) and x.__name__ == command)
-		if len(fns) != 1:
-			raise RuntimeError("Unable to find function {} in algorithm {}: ".format(command, algname, alg))
+        # get inputs and outputs
+        inputs = {}
+        outputs = {}
 
-		# get inputs and outputs
-		inputs = {}
-		outputs = {}
+        for inp in alg.INPUTS:
+            inputs[inp] = self.get_data_repository(inp, readonly=True)
+        for out in alg.OUTPUTS:
+            outputs[out] = self.get_data_repository(out)
 
-		for inp in alg.inputs:
-			inputs[inp] = self.getDataRepository(inp, readonly=True)
-		for out in alg.outputs:
-			outputs[out] = self.getDataRepository(out)
+        with contextlib.ExitStack() as stack:
+            # prepare repositories
+            for i in inputs:
+                stack.enter_context(inputs[i])
+            for i in outputs:
+                stack.enter_context(outputs[i])
+            fns[0][1](inputs, outputs)
 
-		with contextlib.ExitStack() as stack:
-			# prepare repositories
-			[stack.enter_context(inputs[i]) for i in inputs]
-			[stack.enter_context(outputs[i]) for i in outputs]
-			fns[0][1](inputs, outputs)
+    def get_data_repository(self, name, readonly=False):
+        """Returns a loaded instance of the specified data repository."""
+        return self.repo_drivers[self.repo_config[name]['type']].load(self.repo_config[name], readonly=readonly)
 
-	def getDataRepository(self, name, readonly=False):
-		return self.repoDrivers[self.repoConfig[name]['type']].load(self.repoConfig[name], readonly=readonly)
-
-	def getAlgorithm(self, name):
-		return self.algorithms[name]
+    def get_algorithm(self, name):
+        """Returns the algorithm module specified."""
+        return self.algorithms[name]
