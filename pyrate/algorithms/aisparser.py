@@ -157,7 +157,7 @@ def validate_row(row):
 def get_data_source(name):
     return 0
 
-def run(inp, out, options={}):
+def run(inp, out, dropindices=True):
     """Populate the AIS_Raw database with messages from the AIS csv files."""
 
     files = inp['aiscsv']
@@ -165,8 +165,9 @@ def run(inp, out, options={}):
     log = out['baddata']
 
     # drop indexes for faster insert
-    db.clean.drop_indices()
-    db.dirty.drop_indices()
+    if dropindices:
+        db.clean.drop_indices()
+        db.dirty.drop_indices()
 
     # queue for messages to be inserted into db
     dirtyq = queue.Queue(maxsize=5000)
@@ -271,12 +272,12 @@ def run(inp, out, options={}):
 
     logging.info("Parsing complete, time elapsed = %fs", time.time() - start)
 
-    start = time.time()
-
-    logging.info("Rebuilding table indices...")
-    db.clean.create_indices()
-    db.dirty.create_indices()
-    logging.info("Finished building indices, time elapsed = %fs", time.time() - start)
+    if dropindices:
+        start = time.time()
+        logging.info("Rebuilding table indices...")
+        db.clean.create_indices()
+        db.dirty.create_indices()
+        logging.info("Finished building indices, time elapsed = %fs", time.time() - start)
 
 def readcsv(fp):
     # first line is column headers. Use to extract indices of columns we are extracting
