@@ -1,7 +1,7 @@
 
 def valid_mmsi(mmsi):
     """Checks if a given MMSI number is valid. Returns true if mmsi number is 9 digits long."""
-    return len(str(int(mmsi))) == 9
+    return not mmsi is None and len(str(int(mmsi))) == 9
 
 VALID_MESSAGE_IDS = range(1, 28)
 def valid_message_id(message_id):
