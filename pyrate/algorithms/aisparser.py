@@ -265,7 +265,6 @@ def run(inp, out, options={}):
         logging.info("Completed "+ name +": %d clean, %d dirty, %d invalid messages", clean_ctr, dirty_ctr, invalid_ctr)
 
     # wait for queued tasks to finish
-    validq.join()
     dirtyq.join()
     cleanq.join()
     db.conn.commit()
@@ -296,13 +295,19 @@ def readcsv(fp):
         yield rowsubset
 
 def readxml(fp):
-    current = {}
+    current = _empty_row()
     # iterate xml 'end' events
     for event, elem in ElementTree.iterparse(fp):
         # end of aismessage
         if elem.tag == 'aismessage':
             yield current
-            current = {}
+            current = _empty_row()
         else:
             if elem.tag in AIS_XML_COLNAMES and elem.text != None:
                 current[xml_name_to_csv(elem.tag)] = elem.text
+
+def _empty_row():
+    row = {}
+    for col in AIS_CSV_COLUMNS:
+        row[col] = ''
+    return row
