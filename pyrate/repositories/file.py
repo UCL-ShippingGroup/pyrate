@@ -49,6 +49,7 @@ class FileRepository:
         containing a handle, filename and file extension of the current opened file.
         """
         logging.debug("Iterating files in "+ self.root)
+        failed_files = []
         for root, _, files in os.walk(self.root):
             # iterate files, filtering only allowed extensions
             for filename in files:
@@ -58,18 +59,23 @@ class FileRepository:
                         yield (fp, filename, ext)
                 # zip file auto-extract
                 elif self.unzip and ext == '.zip':
-                    with zipfile.ZipFile(os.path.join(root, filename), 'r') as z:
-                        for zname in z.namelist():
-                            _, ext = os.path.splitext(zname)
-                            if self.allowed_extensions == None or ext in self.allowed_extensions:
-                                with z.open(zname, 'r') as fp:
-                                    # zipfile returns a binary file, so we require a 
-                                    # TextIOWrapper to decode it
-                                    yield (io.TextIOWrapper(fp, encoding='ascii'), zname, ext)
-
+                    try:
+                        with zipfile.ZipFile(os.path.join(root, filename), 'r') as z:
+                            for zname in z.namelist():
+                                _, ext = os.path.splitext(zname)
+                                if self.allowed_extensions == None or ext in self.allowed_extensions:
+                                    with z.open(zname, 'r') as fp:
+                                        # zipfile returns a binary file, so we require a 
+                                        # TextIOWrapper to decode it
+                                        yield (io.TextIOWrapper(fp, encoding='ascii'), zname, ext)
+                    except (zipfile.BadZipFile, RuntimeError) as error:
+                        logging.warning("Unable to extract zip file %s: %s ", filename, error)
+                        failed_files.append(filename)
             # stop after first iteration if not recursive
             if not self.recursive:
                 break
+        if len(failed_files) > 0:
+            logging.warning("Skipped %d files due to errors: %s", len(failed_files), repr(failed_files))
 
     def close(self):
         pass
