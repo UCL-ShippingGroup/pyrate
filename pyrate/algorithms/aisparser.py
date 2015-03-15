@@ -165,7 +165,7 @@ def get_data_source(name):
         # assume satellite
         return 0
 
-def run(inp, out, dropindices=True):
+def run(inp, out, dropindices=True, source=0):
     """Populate the AIS_Raw database with messages from the AIS csv files."""
 
     files = inp['aiscsv']
@@ -213,15 +213,15 @@ def run(inp, out, dropindices=True):
     for fp, name, ext in files.iterfiles():
         # check if we've already parsed this file
         with db.conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) FROM " + db.sources.name + " WHERE filename = %s", [name])
+            cur.execute("SELECT COUNT(*) FROM " + db.sources.name + " WHERE filename = %s AND source = %s", [name, source])
             if cur.fetchone()[0] > 0:
                 logging.info("Already parsed "+ name +", skipping...")
                 continue
         
         # parse file
         try:
-            invalid_ctr, clean_ctr, dirty_ctr, duration = parse_file(fp, name, ext, os.path.join(log.root, name), cleanq, dirtyq)
-            db.sources.insert_row({'filename': name, 'ext': ext, 'invalid': invalid_ctr, 'clean': clean_ctr, 'dirty': dirty_ctr})
+            invalid_ctr, clean_ctr, dirty_ctr, duration = parse_file(fp, name, ext, os.path.join(log.root, name), cleanq, dirtyq, source=source)
+            db.sources.insert_row({'filename': name, 'ext': ext, 'invalid': invalid_ctr, 'clean': clean_ctr, 'dirty': dirty_ctr, 'source': source})
             db.conn.commit()
             logging.info("Completed "+ name +": %d clean, %d dirty, %d invalid messages, %fs", clean_ctr, dirty_ctr, invalid_ctr, duration)
         except RuntimeError as error:
@@ -241,7 +241,7 @@ def run(inp, out, dropindices=True):
         db.dirty.create_indices()
         logging.info("Finished building indices, time elapsed = %fs", time.time() - start)
 
-def parse_file(fp, name, ext, baddata_logfile, cleanq, dirtyq):
+def parse_file(fp, name, ext, baddata_logfile, cleanq, dirtyq, source=0):
     filestart = time.time()
     logging.info("Parsing "+ name)
 
@@ -264,7 +264,7 @@ def parse_file(fp, name, ext, baddata_logfile, cleanq, dirtyq):
             raise RuntimeError("Cannot parse file with extension %s"% ext)
 
         # infer the data source from the file name
-        source = get_data_source(name)
+        #source = get_data_source(name)
 
         # parse and iterate lines from the current file
         for row in iterator(fp):

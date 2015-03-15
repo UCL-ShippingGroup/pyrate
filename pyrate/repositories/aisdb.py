@@ -14,7 +14,6 @@ class AISdb(sql.PgsqlRepository):
 
     clean_db_spec = {
         'cols': [
-            ('ID', 'SERIAL PRIMARY KEY'),
             ('MMSI', 'integer'),
             ('Time', 'timestamp without time zone'),
             ('Message_ID', 'integer'),
@@ -32,20 +31,21 @@ class AISdb(sql.PgsqlRepository):
             ('ETA_day', 'integer'),
             ('ETA_hour', 'integer'),
             ('ETA_minute', 'integer'),
-            ('source', 'smallint')
+            ('source', 'smallint'),
+            ('ID', 'SERIAL PRIMARY KEY')
         ],
         'indices': [
             ('dt_idx', ['Time']),
             ('imo_idx', ['IMO']),
             ('lonlat_idx', ['Longitude', 'Latitude']),
             ('mmsi_idx', ['MMSI']),
-            ('msg_idx', ['Message_ID'])
+            ('msg_idx', ['Message_ID']),
+            ('source_idx', ['source'])
         ]
     }
 
     dirty_db_spec = {
         'cols': [
-            ('ID', 'SERIAL PRIMARY KEY'),
             ('MMSI', 'integer'),
             ('Time', 'timestamp without time zone'),
             ('Message_ID', 'integer'),
@@ -63,14 +63,16 @@ class AISdb(sql.PgsqlRepository):
             ('ETA_day', 'integer'),
             ('ETA_hour', 'integer'),
             ('ETA_minute', 'integer'),
-            ('source', 'smallint')
+            ('source', 'smallint'),
+            ('ID', 'SERIAL PRIMARY KEY')
         ],
         'indices': [
             ('dt_idx', ['Time']),
             ('imo_idx', ['IMO']),
             ('lonlat_idx', ['Longitude', 'Latitude']),
             ('mmsi_idx', ['MMSI']),
-            ('msg_idx', ['Message_ID'])
+            ('msg_idx', ['Message_ID']),
+            ('source_idx', ['source'])
         ]
     }
 
@@ -81,8 +83,19 @@ class AISdb(sql.PgsqlRepository):
             ('ext', 'TEXT'),
             ('invalid', 'integer'),
             ('clean', 'integer'),
-            ('dirty', 'integer')
+            ('dirty', 'integer'),
+            ('source', 'integer')
         ]
+    }
+
+    imolist_db_spec = {
+        'cols': [
+            ('mmsi', 'integer'),
+            ('imo', 'integer'),
+            ('first_seen', 'timestamp without time zone'),
+            ('last_seen', 'timestamp without time zone')
+        ],
+        'constraint': ['CONSTRAINT imo_list_pkey PRIMARY KEY (mmsi, imo)']
     }
 
     def __init__(self, options, readonly=False):
@@ -92,7 +105,9 @@ class AISdb(sql.PgsqlRepository):
         self.dirty = sql.Table(self, 'ais_dirty', self.dirty_db_spec['cols'],
                                self.dirty_db_spec['indices'])
         self.sources = sql.Table(self, 'ais_sources', self.sources_db_spec['cols'])
-        self.tables = [self.clean, self.dirty, self.sources]
+        self.imolist = sql.Table(self, 'imo_list', self.imolist_db_spec['cols'], 
+                                 constraint=self.imolist_db_spec['constraint'])
+        self.tables = [self.clean, self.dirty, self.sources, self.imolist]
 
     def status(self):
         print("Status of PGSql database "+ self.db +":")

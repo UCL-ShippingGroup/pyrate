@@ -26,13 +26,16 @@ class PgsqlRepository:
 
 class Table:
 
-    def __init__(self, db, name, cols, indices=None):
+    def __init__(self, db, name, cols, indices=None, constraint=None):
         self.db = db
         self.name = name
         self.cols = cols
         self.indices = indices
         if self.indices is None:
             self.indices = []
+        self.constraint = constraint
+        if self.constraint is None:
+            self.constraint = []
 
     def get_name(self):
         return self.name
@@ -40,7 +43,8 @@ class Table:
     def create(self):
         with self.db.conn.cursor() as cur:
             logging.info("CREATING "+ self.name +" table")
-            sql = "CREATE TABLE IF NOT EXISTS \""+ self.name +"\" (" + ','.join(["\"{}\" {}".format(c[0].lower(), c[1]) for c in self.cols]) + ")"
+            columns = ["\"{}\" {}".format(c[0].lower(), c[1]) for c in self.cols]
+            sql = "CREATE TABLE IF NOT EXISTS \""+ self.name +"\" (" + ','.join(columns + self.constraint) + ")"
             cur.execute(sql)
             self.db.conn.commit()
 
