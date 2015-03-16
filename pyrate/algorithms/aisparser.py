@@ -177,10 +177,6 @@ def run(inp, out, dropindices=True, source=0):
         db.clean.drop_indices()
         db.dirty.drop_indices()
 
-    # queue for messages to be inserted into db
-    dirtyq = queue.Queue(maxsize=5000)
-    cleanq = queue.Queue(maxsize=5000)
-
     # worker thread which takes batches of tuples from the queue to be
     # inserted into db
     def sqlworker(q, table):
@@ -200,6 +196,9 @@ def run(inp, out, dropindices=True, source=0):
             for i in range(n):
                 q.task_done()
 
+    # queue for messages to be inserted into db
+    dirtyq = queue.Queue(maxsize=1000000)
+    cleanq = queue.Queue(maxsize=1000000)
     # set up processing pipeline threads
     clean_thread = threading.Thread(target=sqlworker, daemon=True,
                                    args=(cleanq, db.clean))
@@ -221,6 +220,8 @@ def run(inp, out, dropindices=True, source=0):
         # parse file
         try:
             invalid_ctr, clean_ctr, dirty_ctr, duration = parse_file(fp, name, ext, os.path.join(log.root, name), cleanq, dirtyq, source=source)
+            dirtyq.join()
+            cleanq.join()
             db.sources.insert_row({'filename': name, 'ext': ext, 'invalid': invalid_ctr, 'clean': clean_ctr, 'dirty': dirty_ctr, 'source': source})
             db.conn.commit()
             logging.info("Completed "+ name +": %d clean, %d dirty, %d invalid messages, %fs", clean_ctr, dirty_ctr, invalid_ctr, duration)
@@ -287,6 +288,9 @@ def parse_file(fp, name, ext, baddata_logfile, cleanq, dirtyq, source=0):
             except ValueError:
                 dirtyq.put(converted_row)
                 dirty_ctr = dirty_ctr + 1
+
+    if invalid_ctr == 0:
+        os.remove(baddata_logfile)
 
     return (invalid_ctr, clean_ctr, dirty_ctr, time.time() - filestart)
 
