@@ -40,7 +40,8 @@ class AISdb(sql.PgsqlRepository):
             ('lonlat_idx', ['Longitude', 'Latitude']),
             ('mmsi_idx', ['MMSI']),
             ('msg_idx', ['Message_ID']),
-            ('source_idx', ['source'])
+            ('source_idx', ['source']),
+            ('mmsi_imo_idx', ['MMSI','IMO'])
         ]
     }
 
@@ -72,7 +73,8 @@ class AISdb(sql.PgsqlRepository):
             ('lonlat_idx', ['Longitude', 'Latitude']),
             ('mmsi_idx', ['MMSI']),
             ('msg_idx', ['Message_ID']),
-            ('source_idx', ['source'])
+            ('source_idx', ['source']),
+            ('mmsi_imo_idx', ['MMSI','IMO'])
         ]
     }
 

@@ -103,3 +103,7 @@ class Table:
             # note that mogrify generates a binary string which we must first decode to ascii.
             args = ','.join([cur.mogrify(tuplestr, x).decode('ascii') for x in rows])
             cur.execute("INSERT INTO " + self.name + " "+ columnlist + " VALUES "+ args)
+
+    def copy_from_file(self, fname, columns):
+        with self.db.conn.cursor() as cur:
+            cur.execute("COPY "+ self.name + " (" + ','.join(c.lower() for c in columns) +") FROM %s DELIMITER ',' CSV HEADER", [fname])
