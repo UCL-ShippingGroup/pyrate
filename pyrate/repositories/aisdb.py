@@ -92,12 +92,12 @@ class AISdb(sql.PgsqlRepository):
 
     imolist_db_spec = {
         'cols': [
-            ('mmsi', 'integer'),
-            ('imo', 'integer'),
+            ('mmsi', 'integer NOT NULL'),
+            ('imo', 'integer NULL'),
             ('first_seen', 'timestamp without time zone'),
             ('last_seen', 'timestamp without time zone')
         ],
-        'constraint': ['CONSTRAINT imo_list_pkey PRIMARY KEY (mmsi, imo)']
+        'constraint': ['CONSTRAINT imo_list_key UNIQUE (mmsi, imo)']
     }
 
     def __init__(self, options, readonly=False):
