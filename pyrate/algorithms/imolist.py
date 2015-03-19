@@ -142,18 +142,38 @@ def generate_squeaky_table(aisdb):
     logging.info("Inserting %d squeaky clean ships", len(valid))
 
     with aisdb.conn.cursor() as cur:
+        start = time.time()
         cur.execute("SELECT DISTINCT mmsi from {}".format(aisdb.squeaky.name))
         existing_mmsis = set([row[0] for row in cur.fetchall()])
-        
-        i = 0
-        total = len(valid) - len(existing_mmsis)
-        
-        for mmsi, imo, start, end in intervals:
-            if mmsi in existing_mmsis:
-                logging.debug("MMSI %d already in table, skipping insert.", mmsi)
-            else:
-                i = i + 1
-                cur.execute("INSERT INTO {} SELECT {} FROM {} WHERE mmsi = %s".format(aisdb.squeaky.name, ','.join([c[0].lower() for c in aisdb.squeaky.cols]), aisdb.clean.name), [mmsi])
-                logging.debug("Inserted %d rows for MMSI %d. (%d/%d)", cur.rowcount, mmsi, i, total)
+        logging.info("%d MMSIs already imported (%fs)", len(existing_mmsis), time.time() - start)
 
+    i = 0
+    total = len(intervals) - len(existing_mmsis)
+    mmsi_list = [row[0] for row in intervals]
+    
+    for mmsi in sorted(mmsi_list):
+        if mmsi in existing_mmsis:
+            continue
+        else:
+            i = i + 1
+            start = time.time()
+            count = _copy_table_mmsi(aisdb, mmsi)
+            logging.debug("Inserted %d rows for MMSI %d. (%d/%d) (%fs)", count, mmsi, i, total, time.time() - start)
             aisdb.conn.commit()
+
+def _copy_table_mmsi(aisdb, mmsi):
+    with aisdb.conn.cursor() as cur:
+        cols_list = ','.join([c[0].lower() for c in aisdb.squeaky.cols])
+        select_sql = "SELECT {} FROM {} WHERE mmsi = %s".format(cols_list, aisdb.clean.name)
+        cur.execute("INSERT INTO {} {}".format(aisdb.squeaky.name, select_sql), [mmsi])
+        return cur.rowcount
+
+def _copy_table_subset_mmsis(aisdb, mmsis):
+    if len(mmsis) == 0:
+        return
+
+    with aisdb.conn.cursor() as cur:
+        cols_list = ','.join([c[0].lower() for c in aisdb.squeaky.cols])
+        mmsi_list = ','.join(['%s'] * len(mmsis))
+        cur.execute("INSERT INTO {} SELECT {} FROM {} WHERE mmsi IN ({})".format(aisdb.squeaky.name, cols_list, aisdb.clean.name, mmsi_list), mmsis)
+        return cur.rowcount
