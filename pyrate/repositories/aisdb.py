@@ -109,7 +109,9 @@ class AISdb(sql.PgsqlRepository):
         self.sources = sql.Table(self, 'ais_sources', self.sources_db_spec['cols'])
         self.imolist = sql.Table(self, 'imo_list', self.imolist_db_spec['cols'], 
                                  constraint=self.imolist_db_spec['constraint'])
-        self.tables = [self.clean, self.dirty, self.sources, self.imolist]
+        self.squeaky = sql.Table(self, 'squeaky', self.clean_db_spec['cols'],
+                               self.clean_db_spec['indices'])
+        self.tables = [self.clean, self.dirty, self.sources, self.imolist, self.squeaky]
 
     def status(self):
         print("Status of PGSql database "+ self.db +":")
