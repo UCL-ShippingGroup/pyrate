@@ -37,6 +37,12 @@ class Loader:
     and executes operations on them."""
 
     def __init__(self, config):
+        # load from file if path provided
+        if isinstance(config, str):
+            loaded_conf = ConfigParser()
+            loaded_conf.read(config)
+            config = loaded_conf
+
         repopaths = config.get('globals', 'repos')
         repopaths = repopaths.split(',')
 
