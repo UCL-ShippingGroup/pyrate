@@ -18,8 +18,11 @@ class PgsqlRepository:
             self.password = options['pass']
         self.conn = None
 
+    def connection(self):
+        return psycopg2.connect(host=self.host, database=self.db, user=self.user, password=self.password)
+
     def __enter__(self):
-        self.conn = psycopg2.connect(host=self.host, database=self.db, user=self.user, password=self.password)
+        self.conn = self.connection()
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.conn.close()
