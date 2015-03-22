@@ -219,7 +219,7 @@ def run(inp, out, dropindices=True, source=0):
         
         # parse file
         try:
-            invalid_ctr, clean_ctr, dirty_ctr, duration = parse_file(fp, name, ext, os.path.join(log.root, name), cleanq, dirtyq, source=source)
+            invalid_ctr, clean_ctr, dirty_ctr, duration = parse_file(fp, name, ext, os.path.join(log.root, os.path.basename(name)), cleanq, dirtyq, source=source)
             dirtyq.join()
             cleanq.join()
             db.sources.insert_row({'filename': name, 'ext': ext, 'invalid': invalid_ctr, 'clean': clean_ctr, 'dirty': dirty_ctr, 'source': source})
