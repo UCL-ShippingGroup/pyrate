@@ -50,8 +50,21 @@ def detect_outliers(msg_stream):
      * list of valid messages from the stream;
      * list of discarded messages from the stream.
 
-    msg_stream is a list of dictionaries representing AIS messages. Dictionary keys
-    correspond to the column names from the ais_clean table. The list of messages should 
-    be ordered by timestamp in ascending order.
+    msg_stream is a list of dictionaries representing AIS messages for a single
+    MMSI number. Dictionary keys correspond to the column names from the
+    ais_clean table. The list of messages should be ordered by timestamp in
+    ascending order.
     """
     return msg_stream, []
+
+def interpolate_passages(msg_stream):
+    """Interpolate far apart points in an ordered stream of messages.
+
+    Returns list of artificial messages to fill in gaps/navigate around land.
+
+    msg_stream is a list of dictionaries representing AIS messages for a single
+    MMSI number. Dictionary keys correspond to the column names from the
+    ais_clean table. The list of messages should be ordered by timestamp in
+    ascending order.
+    """
+    return []
