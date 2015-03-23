@@ -111,7 +111,8 @@ class AISdb(sql.PgsqlRepository):
             ('action', 'TEXT'),
             ('mmsi', 'integer NOT NULL'),
             ('ts_from', 'timestamp without time zone'),
-            ('ts_to', 'timestamp without time zone')
+            ('ts_to', 'timestamp without time zone'),
+            ('count', 'integer NULL')
         ],
         'indices': [
             ('ts_idx', ['timestamp']),

@@ -137,9 +137,9 @@ def insert_interval(aisdb, interval):
 
         # get data for this interval range
         cols_list = ','.join([c[0].lower() for c in aisdb.extended.cols])
-        select_sql = "SELECT {} FROM {} WHERE mmsi = %s AND time >= %s AND time <= %s".format(cols_list, aisdb.clean.name)
+        select_sql = "SELECT {} FROM {} WHERE mmsi = %s AND time >= %s AND time <= %s ORDER BY time ASC".format(cols_list, aisdb.clean.name)
         cur.execute(select_sql, [mmsi, start, end])
-        # TODO pass data through filter
+        # Put messages into dicts for database insert
         msg_stream = []
         for row in cur:
             message = {}
@@ -150,13 +150,23 @@ def insert_interval(aisdb, interval):
         if row_count == 0:
             logging.warning("No rows to insert for interval %s", interval)
             return 0
-        aisdb.extended.insert_rows_batch(msg_stream)
+
+        # call the message filter
+        valid, invalid = utils.detect_outliers(msg_stream)
+
+        aisdb.extended.insert_rows_batch(valid)
 
         # mark the work we've done
         aisdb.action_log.insert_row({'action': "import", 
+                                     'mmsi': mmsi,
+                                     'ts_from': start, 
+                                     'ts_to': end,
+                                     'count': len(valid)})
+        aisdb.action_log.insert_row({'action': "outlier detection (noop)", 
                                      'mmsi': mmsi, 
                                      'ts_from': start, 
-                                     'ts_to': end})
+                                     'ts_to': end,
+                                     'count': len(invalid)})
         upsert_interval_to_imolist(aisdb, cur, mmsi, imo, start, end)
 
         # finished, commit
