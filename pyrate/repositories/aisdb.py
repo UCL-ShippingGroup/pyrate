@@ -100,6 +100,27 @@ class AISdb(sql.PgsqlRepository):
         'constraint': ['CONSTRAINT imo_list_key UNIQUE (mmsi, imo)']
     }
 
+    clean_imo_list = {
+        'cols': imolist_db_spec['cols'],
+        'constraint': ['CONSTRAINT imo_list_pkey PRIMARY KEY (mmsi, imo)']
+    }
+
+    action_log_spec = {
+        'cols': [
+            ('timestamp', 'timestamp without time zone DEFAULT now()'),
+            ('action', 'TEXT'),
+            ('mmsi', 'integer NOT NULL'),
+            ('ts_from', 'timestamp without time zone'),
+            ('ts_to', 'timestamp without time zone')
+        ],
+        'indices': [
+            ('ts_idx', ['timestamp']),
+            ('action_idx', ['action']),
+            ('mmsi_idx', ['mmsi'])
+        ],
+        'constraint': ['CONSTRAINT action_log_pkey PRIMARY KEY (timestamp, action, mmsi)']
+    }
+
     def __init__(self, options, readonly=False):
         super(AISdb, self).__init__(options, readonly)
         self.clean = sql.Table(self, 'ais_clean', self.clean_db_spec['cols'],
@@ -109,9 +130,11 @@ class AISdb(sql.PgsqlRepository):
         self.sources = sql.Table(self, 'ais_sources', self.sources_db_spec['cols'])
         self.imolist = sql.Table(self, 'imo_list', self.imolist_db_spec['cols'], 
                                  constraint=self.imolist_db_spec['constraint'])
-        self.squeaky = sql.Table(self, 'squeaky', self.clean_db_spec['cols'],
+        self.extended = sql.Table(self, 'ais_extended', self.clean_db_spec['cols'],
                                self.clean_db_spec['indices'])
-        self.tables = [self.clean, self.dirty, self.sources, self.imolist, self.squeaky]
+        self.clean_imolist = sql.Table(self, 'imo_list_clean', self.clean_imo_list['cols'], constraint=self.clean_imo_list['constraint'])
+        self.action_log = sql.Table(self, 'action_log', self.action_log_spec['cols'], self.action_log_spec['indices'], constraint=self.action_log_spec['constraint'])
+        self.tables = [self.clean, self.dirty, self.sources, self.imolist, self.extended, self.clean_imolist, self.action_log]
 
     def status(self):
         print("Status of PGSql database "+ self.db +":")
@@ -131,3 +154,15 @@ class AISdb(sql.PgsqlRepository):
         """Delete all data in the AIS table."""
         for tb in self.tables:
             tb.truncate()
+
+    def ship_info(self, imo):
+        with self.conn.cursor() as cur:
+            cur.execute("select vessel_name, MIN(time), MAX(time) from ais_clean where message_id = 5 and imo = %s GROUP BY vessel_name", [imo])
+            for row in cur:
+                print("Vessel: {} ({} - {})".format(*row))
+
+            cur.execute("select mmsi, first_seen, last_seen from imo_list where imo = %s", [imo])
+            for row in cur:
+                print("MMSI = {} ({} - {})".format(*row))
+
+            cur.execute()

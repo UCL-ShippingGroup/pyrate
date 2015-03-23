@@ -2,8 +2,20 @@ import logging
 import time
 import contextlib
 import threading
+import psycopg2
 import queue
+from pyrate import loader
 from pyrate import utils
+
+EXPORT_COMMANDS = [('run','')]
+INPUTS = []
+OUTPUTS = ['aisdb']
+
+def run(inp, out):
+    aisdb = out['aisdb']
+    valid_imos, imo_mmsi_intervals = filter_good_ships(aisdb)
+    logging.info("Got %d valid IMO numbers", len(valid_imos))
+    generate_extended_table(aisdb, imo_mmsi_intervals)
 
 def filter_good_ships(aisdb):
     """Generate a set of imo numbers and (mmsi, imo) validity intervals, for
@@ -72,77 +84,114 @@ def filter_good_ships(aisdb):
     
         return (valid_imos, imo_mmsi_intervals)
 
-def generate_squeaky_table(aisdb):
-    valid, intervals = filter_good_ships(aisdb)
+def generate_extended_table(aisdb, intervals):
+
+    logging.info("Inserting %d squeaky clean MMSIs", len(intervals))     
     
-    logging.info("Inserting %d squeaky clean ships", len(valid))
+    start = time.time()
 
-    with aisdb.conn.cursor() as cur:
-        start = time.time()
-        cur.execute("SELECT DISTINCT mmsi from {}".format(aisdb.squeaky.name))
-        existing_mmsis = set([row[0] for row in cur.fetchall()])
-        logging.info("%d MMSIs already imported (%fs)", len(existing_mmsis), time.time() - start)
+    interval_q = queue.Queue()
+    for interval in sorted(intervals, key=lambda x: x[0]):
+        interval_q.put(interval)
 
-    mmsi_list = set([row[0] for row in intervals]) - existing_mmsis
-    total = len(mmsi_list)
-    logging.info("%d MMSIs to insert", total)        
-        
-    
-    mmsi_q = queue.Queue()
-    for mmsi in sorted(mmsi_list):
-        mmsi_q.put(mmsi)
-
-    pool = [threading.Thread(target=mmsi_copier, daemon=True, args=(aisdb, mmsi_q)) for i in range(10)]
+    pool = [threading.Thread(target=interval_copier, daemon=True, args=(aisdb.options, interval_q)) for i in range(1)]
     [t.start() for t in pool]
-    
+
+    total = len(intervals)
     remain = total
     start = time.time()
-    while(not mmsi_q.empty()):
-        q_size = mmsi_q.qsize()
+    while not interval_q.empty():
+        q_size = interval_q.qsize()
         if remain > q_size:
             logging.info("%d/%d MMSIs completed, %f/s.", total - q_size, total, (total - q_size) / (time.time() - start))
             remain = q_size
         time.sleep(5)
-    mmsi_q.join()
+    interval_q.join()
 
-def mmsi_copier(aisdb, mmsi_q):
-    logging.debug("Start MMSI copier task")
-    with contextlib.closing(aisdb.connection()) as conn:
-        while not mmsi_q.empty():
-            mmsi = mmsi_q.get()
-            with aisdb.conn.cursor() as cur:
-                start = time.time()
-                cols_list = ','.join([c[0].lower() for c in aisdb.squeaky.cols])
-                select_sql = "SELECT {} FROM {} WHERE mmsi = %s".format(cols_list, aisdb.clean.name)
-                cur.execute("INSERT INTO {} {}".format(aisdb.squeaky.name, select_sql), [mmsi])
-                logging.debug("Inserted %d rows for MMSI %d. (%fs)", cur.rowcount, mmsi, time.time() - start)
-            conn.commit()
-            mmsi_q.task_done()
+def interval_copier(db_options, interval_q):
+    from pyrate.repositories import aisdb as db
+    aisdb = db.load(db_options)
+    logging.debug("Start interval copier task")
+    with aisdb:
+        while not interval_q.empty():
+            interval = interval_q.get()
+            n = insert_interval(aisdb, interval)
+            interval_q.task_done()
 
-def _mmsi_copy(aisdb, mmsi):
-    with contextlib.closing(aisdb.connection()) as conn:
-        with aisdb.conn.cursor() as cur:
-            start = time.time()
-            cols_list = ','.join([c[0].lower() for c in aisdb.squeaky.cols])
-            select_sql = "SELECT {} FROM {} WHERE mmsi = %s".format(cols_list, aisdb.clean.name)
-            cur.execute("INSERT INTO {} {}".format(aisdb.squeaky.name, select_sql), [mmsi])
-            logging.debug("Inserted %d rows for MMSI %d. (%fs)", cur.rowcount, mmsi, time.time() - start)
-        conn.commit()
-    
-
-def _copy_table_mmsi(aisdb, mmsi):
+def insert_interval(aisdb, interval):
+    mmsi, imo, start, end = interval
     with aisdb.conn.cursor() as cur:
-        cols_list = ','.join([c[0].lower() for c in aisdb.squeaky.cols])
-        select_sql = "SELECT {} FROM {} WHERE mmsi = %s".format(cols_list, aisdb.clean.name)
-        cur.execute("INSERT INTO {} {}".format(aisdb.squeaky.name, select_sql), [mmsi])
-        return cur.rowcount
+        t_start = time.time()
+        exists_in_imolist = False
+        # constrain interval based on previous import
+        try:
+            remaining_work = get_remaining_interval(aisdb, cur, mmsi, imo, start, end)
+            if remaining_work is None:
+                #logging.info("Interval was already inserted: (%s, %s, %s, %s)", mmsi, imo, start, end)
+                return 0
+            else:
+                start, end = remaining_work
+        except psycopg2.Error as e:
+            logging.warning("Error calculating timetamp intersection for MMSI %d: %s", mmsi, e)
+            return 0
 
-def _copy_table_subset_mmsis(aisdb, mmsis):
-    if len(mmsis) == 0:
-        return
+        # get data for this interval range
+        cols_list = ','.join([c[0].lower() for c in aisdb.extended.cols])
+        select_sql = "SELECT {} FROM {} WHERE mmsi = %s AND time >= %s AND time <= %s".format(cols_list, aisdb.clean.name)
+        cur.execute(select_sql, [mmsi, start, end])
+        # TODO pass data through filter
+        msg_stream = []
+        for row in cur:
+            message = {}
+            for i, col in enumerate(aisdb.extended.cols):
+                message[col[0]] = row[i]
+            msg_stream.append(message)
+        row_count = len(msg_stream)
+        if row_count == 0:
+            logging.warning("No rows to insert for interval %s", interval)
+            return 0
+        aisdb.extended.insert_rows_batch(msg_stream)
 
-    with aisdb.conn.cursor() as cur:
-        cols_list = ','.join([c[0].lower() for c in aisdb.squeaky.cols])
-        mmsi_list = ','.join(['%s'] * len(mmsis))
-        cur.execute("INSERT INTO {} SELECT {} FROM {} WHERE mmsi IN ({})".format(aisdb.squeaky.name, cols_list, aisdb.clean.name, mmsi_list), mmsis)
-        return cur.rowcount
+        # mark the work we've done
+        aisdb.action_log.insert_row({'action': "import", 
+                                     'mmsi': mmsi, 
+                                     'ts_from': start, 
+                                     'ts_to': end})
+        upsert_interval_to_imolist(aisdb, cur, mmsi, imo, start, end)
+
+        # finished, commit
+        aisdb.conn.commit()
+        logging.debug("Inserted %d rows for MMSI %d. (%fs)", row_count, mmsi, time.time() - t_start)
+        return row_count
+
+def get_remaining_interval(aisdb, cur, mmsi, imo, start, end):
+    try:
+        cur.execute("SELECT tsrange(%s, %s) - tsrange(%s, %s) * tsrange(first_seen - interval '1 second', last_seen + interval '1 second') FROM {} WHERE mmsi = %s AND imo = %s".format(aisdb.clean_imolist.name), 
+                    [start, end, start, end, mmsi, imo])
+        row = cur.fetchone()
+        if not row is None:
+            sub_interval = row[0]
+            if sub_interval.isempty:
+                return None
+            else:   
+                return sub_interval.lower, sub_interval.upper
+        else:
+            return (start, end)
+    except psycopg2.Error as e:
+        logging.warning("Error calculating timetamp intersection for MMSI %d: %s", mmsi, e)
+        return None
+
+def upsert_interval_to_imolist(aisdb, cur, mmsi, imo, start, end):
+    cur.execute("SELECT COUNT(*) FROM {} WHERE mmsi = %s AND imo = %s"
+                 .format(aisdb.clean_imolist.name),
+                 [mmsi, imo])
+    count = cur.fetchone()[0]
+    if count == 1:
+        cur.execute("""UPDATE {} SET
+                    first_seen = LEAST(first_seen, %s), 
+                    last_seen = GREATEST(last_seen, %s)
+                    WHERE mmsi = %s AND imo = %s""".format(aisdb.clean_imolist.name),
+                    [start, end, mmsi, imo])
+    elif count == 0:
+        aisdb.clean_imolist.insert_row({'mmsi': mmsi, 'imo': imo, 'first_seen': start, 
+                                      'last_seen': end})
