@@ -99,6 +99,9 @@ class Table:
             cur.execute("INSERT INTO " + self.name + " "+ columnlist + " VALUES "+ tuplestr, data)
 
     def insert_rows_batch(self, rows):
+        # check there are rows in insert
+        if len(rows) == 0:
+            return
         with self.db.conn.cursor() as cur:
             columnlist = '(' + ','.join([c.lower() for c in rows[0].keys()]) + ')'
             tuplestr = "(" + ",".join("%({})s".format(i) for i in rows[0]) + ")"
