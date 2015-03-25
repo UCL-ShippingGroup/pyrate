@@ -167,3 +167,36 @@ class AISdb(sql.PgsqlRepository):
                 print("MMSI = {} ({} - {})".format(*row))
 
             cur.execute()
+
+    def get_message_stream(self, mmsi, from_ts=None, to_ts=None, use_clean_db=False):
+        """Gets the stream of messages for the given mmsi, ordered by timestamp ascending"""
+        # construct db query
+        if use_clean_db:
+            db = self.clean
+        else:
+            db = self.extended
+        where = ["mmsi = %s"]
+        params = [mmsi]
+        if not from_ts is None:
+            where.append("time >= %s")
+            params.append(from_ts)
+        if not to_ts is None:
+            where.append("time <= %s")
+            params.append(to_ts)
+        
+        cols_list = ','.join([c[0].lower() for c in db.cols])
+        where_clause = ' AND '.join(where)
+        sql = "SELECT {} FROM {} WHERE {} ORDER BY time ASC".format(cols_list,
+                db.get_name(), where_clause)
+
+        with self.conn.cursor() as cur:
+            cur.execute(sql, params)
+            msg_stream = []
+            # convert tuples from db cursor into dicts
+            for row in cur:
+                message = {}
+                for i, col in enumerate(db.cols):
+                    message[col[0]] = row[i]
+                msg_stream.append(message)
+
+            return msg_stream

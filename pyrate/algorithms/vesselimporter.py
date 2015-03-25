@@ -1,13 +1,11 @@
 import logging
 import time
-import contextlib
 import threading
 import psycopg2
 import queue
-from pyrate import loader
 from pyrate import utils
 
-EXPORT_COMMANDS = [('run','')]
+EXPORT_COMMANDS = [('run', 'Extract a subset of clean ships into ais_extended tables')]
 INPUTS = []
 OUTPUTS = ['aisdb']
 
@@ -115,93 +113,93 @@ def interval_copier(db_options, interval_q):
     with aisdb:
         while not interval_q.empty():
             interval = interval_q.get()
-            n = insert_interval(aisdb, interval)
+            process_interval_series(aisdb, interval)
             interval_q.task_done()
 
-def insert_interval(aisdb, interval):
+def process_interval_series(aisdb, interval):
     mmsi, imo, start, end = interval
+    t_start = time.time()
+    # constrain interval based on previous import
+    remaining_work = get_remaining_interval(aisdb, mmsi, imo, start, end)
+    if remaining_work is None:
+        #logging.info("Interval was already inserted: (%s, %s, %s, %s)", mmsi, imo, start, end)
+        return 0
+    else:
+        start, end = remaining_work
+
+    # get data for this interval range
+    msg_stream = aisdb.get_message_stream(mmsi, from_ts=start, to_ts=end, use_clean_db=True)
+    row_count = len(msg_stream)
+    if row_count == 0:
+        logging.warning("No rows to insert for interval %s", interval)
+        return 0
+
+    insert_message_stream(aisdb, [mmsi, imo, start, end], msg_stream)
+
+    # finished, commit
+    aisdb.conn.commit()
+    logging.debug("Inserted %d rows for MMSI %d. (%fs)", row_count, mmsi, time.time() - t_start)
+    return row_count
+
+def insert_message_stream(aisdb, interval, msg_stream):
+    """Takes a stream of messages for an MMSI over an interval, runs it through
+    outlier detection and interpolation algorithms, then inserts the resulting
+    stream into the ais_extended table."""
+    mmsi, imo, start, end = interval
+    # call the message filter
+    valid, invalid = utils.detect_outliers(msg_stream)
+    artificial = utils.interpolate_passages(valid)
+
+    aisdb.extended.insert_rows_batch(valid + artificial)
+
+    # mark the work we've done
+    aisdb.action_log.insert_row({'action': "import", 
+                                 'mmsi': mmsi,
+                                 'ts_from': start, 
+                                 'ts_to': end,
+                                 'count': len(valid)})
+    aisdb.action_log.insert_row({'action': "outlier detection (noop)", 
+                                 'mmsi': mmsi, 
+                                 'ts_from': start, 
+                                 'ts_to': end,
+                                 'count': len(invalid)})
+    aisdb.action_log.insert_row({'action': "interpolation (noop)", 
+                                 'mmsi': mmsi, 
+                                 'ts_from': start, 
+                                 'ts_to': end,
+                                 'count': len(artificial)})
+    upsert_interval_to_imolist(aisdb, mmsi, imo, start, end)
+
+def get_remaining_interval(aisdb, mmsi, imo, start, end):
     with aisdb.conn.cursor() as cur:
-        t_start = time.time()
-        exists_in_imolist = False
-        # constrain interval based on previous import
         try:
-            remaining_work = get_remaining_interval(aisdb, cur, mmsi, imo, start, end)
-            if remaining_work is None:
-                #logging.info("Interval was already inserted: (%s, %s, %s, %s)", mmsi, imo, start, end)
-                return 0
+            cur.execute("SELECT tsrange(%s, %s) - tsrange(%s, %s) * tsrange(first_seen - interval '1 second', last_seen + interval '1 second') FROM {} WHERE mmsi = %s AND imo = %s".format(aisdb.clean_imolist.name), 
+                        [start, end, start, end, mmsi, imo])
+            row = cur.fetchone()
+            if not row is None:
+                sub_interval = row[0]
+                if sub_interval.isempty:
+                    return None
+                else:   
+                    return sub_interval.lower, sub_interval.upper
             else:
-                start, end = remaining_work
+                return (start, end)
         except psycopg2.Error as e:
             logging.warning("Error calculating timetamp intersection for MMSI %d: %s", mmsi, e)
-            return 0
+            return None
 
-        # get data for this interval range
-        cols_list = ','.join([c[0].lower() for c in aisdb.extended.cols])
-        select_sql = "SELECT {} FROM {} WHERE mmsi = %s AND time >= %s AND time <= %s ORDER BY time ASC".format(cols_list, aisdb.clean.name)
-        cur.execute(select_sql, [mmsi, start, end])
-        # Put messages into dicts for database insert
-        msg_stream = []
-        for row in cur:
-            message = {}
-            for i, col in enumerate(aisdb.extended.cols):
-                message[col[0]] = row[i]
-            msg_stream.append(message)
-        row_count = len(msg_stream)
-        if row_count == 0:
-            logging.warning("No rows to insert for interval %s", interval)
-            return 0
-
-        # call the message filter
-        valid, invalid = utils.detect_outliers(msg_stream)
-
-        aisdb.extended.insert_rows_batch(valid)
-
-        # mark the work we've done
-        aisdb.action_log.insert_row({'action': "import", 
-                                     'mmsi': mmsi,
-                                     'ts_from': start, 
-                                     'ts_to': end,
-                                     'count': len(valid)})
-        aisdb.action_log.insert_row({'action': "outlier detection (noop)", 
-                                     'mmsi': mmsi, 
-                                     'ts_from': start, 
-                                     'ts_to': end,
-                                     'count': len(invalid)})
-        upsert_interval_to_imolist(aisdb, cur, mmsi, imo, start, end)
-
-        # finished, commit
-        aisdb.conn.commit()
-        logging.debug("Inserted %d rows for MMSI %d. (%fs)", row_count, mmsi, time.time() - t_start)
-        return row_count
-
-def get_remaining_interval(aisdb, cur, mmsi, imo, start, end):
-    try:
-        cur.execute("SELECT tsrange(%s, %s) - tsrange(%s, %s) * tsrange(first_seen - interval '1 second', last_seen + interval '1 second') FROM {} WHERE mmsi = %s AND imo = %s".format(aisdb.clean_imolist.name), 
-                    [start, end, start, end, mmsi, imo])
-        row = cur.fetchone()
-        if not row is None:
-            sub_interval = row[0]
-            if sub_interval.isempty:
-                return None
-            else:   
-                return sub_interval.lower, sub_interval.upper
-        else:
-            return (start, end)
-    except psycopg2.Error as e:
-        logging.warning("Error calculating timetamp intersection for MMSI %d: %s", mmsi, e)
-        return None
-
-def upsert_interval_to_imolist(aisdb, cur, mmsi, imo, start, end):
-    cur.execute("SELECT COUNT(*) FROM {} WHERE mmsi = %s AND imo = %s"
-                 .format(aisdb.clean_imolist.name),
-                 [mmsi, imo])
-    count = cur.fetchone()[0]
-    if count == 1:
-        cur.execute("""UPDATE {} SET
-                    first_seen = LEAST(first_seen, %s), 
-                    last_seen = GREATEST(last_seen, %s)
-                    WHERE mmsi = %s AND imo = %s""".format(aisdb.clean_imolist.name),
-                    [start, end, mmsi, imo])
-    elif count == 0:
-        aisdb.clean_imolist.insert_row({'mmsi': mmsi, 'imo': imo, 'first_seen': start, 
-                                      'last_seen': end})
+def upsert_interval_to_imolist(aisdb, mmsi, imo, start, end):
+    with aisdb.conn.cursor() as cur:
+        cur.execute("SELECT COUNT(*) FROM {} WHERE mmsi = %s AND imo = %s"
+                     .format(aisdb.clean_imolist.name),
+                     [mmsi, imo])
+        count = cur.fetchone()[0]
+        if count == 1:
+            cur.execute("""UPDATE {} SET
+                        first_seen = LEAST(first_seen, %s), 
+                        last_seen = GREATEST(last_seen, %s)
+                        WHERE mmsi = %s AND imo = %s""".format(aisdb.clean_imolist.name),
+                        [start, end, mmsi, imo])
+        elif count == 0:
+            aisdb.clean_imolist.insert_row({'mmsi': mmsi, 'imo': imo, 'first_seen': start, 
+                                          'last_seen': end})
