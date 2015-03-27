@@ -9,11 +9,29 @@ EXPORT_COMMANDS = [('run', 'Extract a subset of clean ships into ais_extended ta
 INPUTS = []
 OUTPUTS = ['aisdb']
 
-def run(inp, out):
+def run(inp, out, n_threads=2, dropindices=False):
     aisdb = out['aisdb']
     valid_imos, imo_mmsi_intervals = filter_good_ships(aisdb)
-    logging.info("Got %d valid IMO numbers", len(valid_imos))
-    generate_extended_table(aisdb, imo_mmsi_intervals)
+    logging.info("Got %d valid IMO numbers, using %d MMSI numbers", len(valid_imos), len(imo_mmsi_intervals))
+    # pre filter intervals
+    def filter_intervals(interval):
+        remain = get_remaining_interval(aisdb, *interval)
+        if not remain is None:
+            return [interval[0], interval[1], remain[0], remain[1]]
+        else:
+            return None
+    filtered_intervals = map(filter_intervals, imo_mmsi_intervals)
+    # sorting intervals by MMSI improves performance on a clustered table
+    sorted_intervals = sorted(filter(None, filtered_intervals), key=lambda x: x[0])
+    logging.info("%d intervals to import", len(sorted_intervals))
+    # insert ships into extended table.
+    if len(sorted_intervals) > 0:
+        if dropindices:
+            aisdb.extended.drop_indices()
+        generate_extended_table(aisdb, sorted_intervals, n_threads=n_threads)
+        if dropindices:
+            aisdb.extended.create_indices()
+    logging.info("Vessel importer done.")
 
 def filter_good_ships(aisdb):
     """Generate a set of imo numbers and (mmsi, imo) validity intervals, for
@@ -82,7 +100,16 @@ def filter_good_ships(aisdb):
     
         return (valid_imos, imo_mmsi_intervals)
 
-def generate_extended_table(aisdb, intervals):
+def cluster_table(aisdb, table):
+    """Performs a clustering of the postgresql table on the MMSI index. This
+    process significantly improves the runtime of extended table generation."""
+    with aisdb.conn.cursor() as cur:
+        index_name = table.name.lower() + "_mmsi_idx"
+        logging.info("Clustering table %s on index %s. This may take a while...",
+                     table.name, index_name)
+        cur.execute("CLUSTER {} USING {}".format(table.name, index_name))
+
+def generate_extended_table(aisdb, intervals, n_threads=2):
 
     logging.info("Inserting %d squeaky clean MMSIs", len(intervals))     
     
@@ -92,7 +119,7 @@ def generate_extended_table(aisdb, intervals):
     for interval in sorted(intervals, key=lambda x: x[0]):
         interval_q.put(interval)
 
-    pool = [threading.Thread(target=interval_copier, daemon=True, args=(aisdb.options, interval_q)) for i in range(1)]
+    pool = [threading.Thread(target=interval_copier, daemon=True, args=(aisdb.options, interval_q)) for i in range(n_threads)]
     [t.start() for t in pool]
 
     total = len(intervals)

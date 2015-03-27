@@ -1,4 +1,5 @@
 from pyrate.repositories import sql
+import psycopg2
 import logging
 
 EXPORT_COMMANDS = [('status', 'report status of this repository.'),
@@ -131,8 +132,7 @@ class AISdb(sql.PgsqlRepository):
         self.sources = sql.Table(self, 'ais_sources', self.sources_db_spec['cols'])
         self.imolist = sql.Table(self, 'imo_list', self.imolist_db_spec['cols'], 
                                  constraint=self.imolist_db_spec['constraint'])
-        self.extended = sql.Table(self, 'ais_extended', self.clean_db_spec['cols'],
-                               self.clean_db_spec['indices'])
+        self.extended = AISExtendedTable(self)
         self.clean_imolist = sql.Table(self, 'imo_list_clean', self.clean_imo_list['cols'], constraint=self.clean_imo_list['constraint'])
         self.action_log = sql.Table(self, 'action_log', self.action_log_spec['cols'], self.action_log_spec['indices'], constraint=self.action_log_spec['constraint'])
         self.tables = [self.clean, self.dirty, self.sources, self.imolist, self.extended, self.clean_imolist, self.action_log]
@@ -166,8 +166,6 @@ class AISdb(sql.PgsqlRepository):
             for row in cur:
                 print("MMSI = {} ({} - {})".format(*row))
 
-            cur.execute()
-
     def get_message_stream(self, mmsi, from_ts=None, to_ts=None, use_clean_db=False):
         """Gets the stream of messages for the given mmsi, ordered by timestamp ascending"""
         # construct db query
@@ -200,3 +198,46 @@ class AISdb(sql.PgsqlRepository):
                 msg_stream.append(message)
 
             return msg_stream
+
+class AISExtendedTable(sql.Table):
+
+    def __init__(self, db):
+        super(AISExtendedTable, self).__init__(db, 'ais_extended', 
+            AISdb.clean_db_spec['cols'] + [('location', 'geography(POINT, 4326)')],
+            AISdb.clean_db_spec['indices'])
+    
+    def create(self):
+        with self.db.conn.cursor() as cur:
+            cur.execute("CREATE EXTENSION IF NOT EXISTS postgis")
+        super(AISExtendedTable, self).create()
+        with self.db.conn.cursor() as cur:
+            # trigger for GIS location generation
+            cur.execute("""CREATE OR REPLACE FUNCTION location_insert() RETURNS trigger AS '
+                        BEGIN
+                            NEW."location" := ST_SetSRID(ST_MakePoint(NEW.longitude, NEW.latitude),4326);
+                            RETURN NEW;
+                        END;
+                        ' LANGUAGE plpgsql;
+                        CREATE TRIGGER {0}_gis_insert 
+                        BEFORE INSERT OR UPDATE ON {0} FOR EACH ROW EXECUTE PROCEDURE location_insert();
+                        """.format(self.name))
+        self.db.conn.commit()
+
+    def create_indices(self):
+        with self.db.conn.cursor() as cur:
+            idxn = self.name.lower() + "_location_idx"
+            try:
+                logging.info("CREATING GIST INDEX "+ idxn + " on table "+ self.name)
+                cur.execute("CREATE INDEX \""+ idxn +"\" ON \"" + self.name +"\" USING GIST(\"location\")")
+            except psycopg2.ProgrammingError:
+                logging.info("Index "+ idxn +" already exists")
+                self.db.conn.rollback()
+        super(AISExtendedTable, self).create_indices()
+
+    def drop_indices(self):
+        with self.db.conn.cursor() as cur:
+            tbl = self.name
+            idxn = tbl.lower() + "_location_idx"
+            logging.info("Dropping index: "+ idxn + " on table "+ tbl)
+            cur.execute("DROP INDEX IF EXISTS \""+ idxn +"\"")
+        super(AISExtendedTable, self).drop_indices()

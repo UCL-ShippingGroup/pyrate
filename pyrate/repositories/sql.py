@@ -4,7 +4,7 @@ import logging
 def load(options, readonly=False):
     return PgsqlRepository(options)
 
-class PgsqlRepository:
+class PgsqlRepository(object):
 
     def __init__(self, options, readonly=False):
         self.options = options
@@ -27,7 +27,7 @@ class PgsqlRepository:
     def __exit__(self, exc_type, exc_value, traceback):
         self.conn.close()
 
-class Table:
+class Table(object):
 
     def __init__(self, db, name, cols, indices=None, constraint=None):
         self.db = db
