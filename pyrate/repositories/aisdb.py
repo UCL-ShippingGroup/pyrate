@@ -1,6 +1,11 @@
 from pyrate.repositories import sql
 import psycopg2
 import logging
+try:
+    import pandas as pd
+except ImportError:
+    logging.warn("No pandas found")
+    pd = None
 
 EXPORT_COMMANDS = [('status', 'report status of this repository.'),
                    ('create', 'create the repository.'),
@@ -166,7 +171,34 @@ class AISdb(sql.PgsqlRepository):
             for row in cur:
                 print("MMSI = {} ({} - {})".format(*row))
 
-    def get_message_stream(self, mmsi, from_ts=None, to_ts=None, use_clean_db=False):
+    def get_messages_for_vessel(self, imo, from_ts=None, to_ts=None, use_clean_db=False, as_df=False):
+        if use_clean_db:
+            imo_list = self.imolist
+        else:
+            imo_list = self.clean_imolist
+
+        where = ["imo = %s"]
+        params = [imo]
+        if not from_ts is None:
+            where.append("time >= %s")
+            params.append(from_ts)
+        if not to_ts is None:
+            where.append("time <= %s")
+            params.append(to_ts)
+
+        with self.conn.cursor() as cur:
+            cur.execute("select mmsi, first_seen, last_seen from {} where {}".format(imo_list.name, ' AND '.join(where)), params)
+            msg_stream = None
+            # get data for each of this ship's mmsi numbers, and concat
+            for mmsi, first, last in cur:
+                stream = self.get_message_stream(mmsi, from_ts=first, to_ts=last, use_clean_db=use_clean_db, as_df=as_df)
+                if msg_stream is None:
+                    msg_stream = stream
+                else:
+                    msg_stream = msg_stream + stream
+            return msg_stream
+
+    def get_message_stream(self, mmsi, from_ts=None, to_ts=None, use_clean_db=False, as_df=False):
         """Gets the stream of messages for the given mmsi, ordered by timestamp ascending"""
         # construct db query
         if use_clean_db:
@@ -187,17 +219,26 @@ class AISdb(sql.PgsqlRepository):
         sql = "SELECT {} FROM {} WHERE {} ORDER BY time ASC".format(cols_list,
                 db.get_name(), where_clause)
 
-        with self.conn.cursor() as cur:
-            cur.execute(sql, params)
-            msg_stream = []
-            # convert tuples from db cursor into dicts
-            for row in cur:
-                message = {}
-                for i, col in enumerate(db.cols):
-                    message[col[0]] = row[i]
-                msg_stream.append(message)
+        if as_df:
+            if pd is None:
+                raise RuntimeError("Pandas not found, cannot create dataframe")
+            # create pandas dataframe
+            with self.conn.cursor() as cur:
+                full_sql = cur.mogrify(sql, params).decode('ascii')
+            return pd.read_sql(full_sql, self.conn, index_col='time', parse_dates=['time'])
 
-            return msg_stream
+        else:
+            with self.conn.cursor() as cur:
+                cur.execute(sql, params)
+                msg_stream = []
+                # convert tuples from db cursor into dicts
+                for row in cur:
+                    message = {}
+                    for i, col in enumerate(db.cols):
+                        message[col[0]] = row[i]
+                    msg_stream.append(message)
+
+                return msg_stream
 
 class AISExtendedTable(sql.Table):
 
