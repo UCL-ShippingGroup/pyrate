@@ -1,4 +1,4 @@
-import Geodesic
+from geographiclib.geodesic import Geodesic
 import pandas as pd
 import numpy
 
