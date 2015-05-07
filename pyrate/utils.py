@@ -63,25 +63,25 @@ def detect_outliers(msg_stream):
     
     def get_dist(row):
         #print row
-        try:
-            straight_line=Geodesic.WGS84.Inverse(row['lat'],row['lon'],\
+        #try:
+            straight_line=Geodesic.WGS84.Inverse(row['Latitude'],row['Longitude'],\
                 row['next_lat'],row['next_lon'])
             dist=straight_line['s12']/1000
             return dist
-        except:
-            return float('inf')
+        #except:
+        #    return float('inf')
             
             
     df_orig=pd.DataFrame.from_records(msg_stream)
     df_dist=pd.DataFrame.from_records(msg_stream)
     
     #calculate the required speed between data points
-    df_dist.sort('date_time',inplace=True)    
+    df_dist.sort('Time',inplace=True)    
     df_dist.reset_index(inplace=True,drop=True)
-    df_dist['next_lat']=df_dist['lat'].shift(periods=1)
-    df_dist['next_lon']=df_dist['lon'].shift(periods=1)
+    df_dist['next_lat']=df_dist['Latitude'].shift(periods=1)
+    df_dist['next_lon']=df_dist['Longitude'].shift(periods=1)
     df_dist['dist']=df_dist.apply(get_dist,axis=1)
-    df_dist['elapsed_time']=df_dist.date_time.diff(1)
+    df_dist['elapsed_time']=df_dist.Time.diff(1)
     
     
     def get_speed(row):
@@ -94,6 +94,8 @@ def detect_outliers(msg_stream):
     df_dist.elapsed_time=df_dist.elapsed_time.astype('timedelta64[s]')
     df_dist['required_speed']=df_dist.apply(get_speed,axis=1)    
     
+    print(df_dist.head())
+    
     df_dist['location_flag']=0
     df_dist['location_flag'].ix[\
             df_dist.required_speed*1.852>max_allow_speed_nm_hr]=1
@@ -105,21 +107,22 @@ def detect_outliers(msg_stream):
     #i.e. we need to get the speed from the source message not the outlier
     #walk forward from each location flag until we find the datapoint that
     #is acceptable
-    for start_indx in df_dist.ix[df_dist.start_flag_index==1].index:
+    for jj,start_indx in enumerate(df_dist.ix[df_dist.start_flag_index==1].index):
+        print("%d of %d"%(jj,len(df_dist.ix[df_dist.start_flag_index==1].index)))
         for ii in range(start_indx+1,df_dist.shape[0]):
             try:
-                straight_line=Geodesic.WGS84.Inverse(df_dist['lat'].ix[ii],\
-                    df_dist['lon'].ix[ii],\
-                    df_dist['lat'].ix[start_indx],\
-                    df_dist['lon'].ix[start_indx])
+                straight_line=Geodesic.WGS84.Inverse(df_dist['Latitude'].ix[ii],\
+                    df_dist['Longitude'].ix[ii],\
+                    df_dist['Latitude'].ix[start_indx],\
+                    df_dist['Longitude'].ix[start_indx])
                 dist=straight_line['s12']/(1000*1.852)
             except:
                 dist=float('inf')
             if pd.isnull(dist):
                 dist=float('inf')
             #df_dist['st_dist'].ix[ii]=dist
-            elapsed_time=(df_dist['date_time'].ix[ii]-\
-                df_dist['date_time'].ix[start_indx]).seconds
+            elapsed_time=(df_dist['Time'].ix[ii]-\
+                df_dist['Time'].ix[start_indx]).seconds
             speed=dist/(numpy.max([1.0,elapsed_time])/(60.0*60))
             if speed>max_allow_speed_nm_hr:
                 df_dist.location_flag.ix[ii]=1
@@ -130,22 +133,22 @@ def detect_outliers(msg_stream):
      
     #Now do speed flag
     df_dist['speed_flag']=0
-    df_dist['speed_flag'].ix[pd.isnull(df_dist.sog)|(df_dist.sog>102.2)]=1
+    df_dist['speed_flag'].ix[pd.isnull(df_dist.SOG)|(df_dist.SOG>102.2)]=1
     
     # Now do course flag
     df_dist['speed_flag']=0
-    df_dist['course_flag'].ix[pd.isnull(df_dist.course)|\
-        (df_dist.course>=360.0)|(df_dist.course<0.0)]=1
+    df_dist['course_flag'].ix[pd.isnull(df_dist.COG)|\
+        (df_dist.COG>=360.0)|(df_dist.COG<0.0)]=1
     
     # Now do heaidng flag
     df_dist['heading_flag']=0
-    df_dist['heading_flag'].ix[pd.isnull(df_dist.heading)|\
-        (df_dist.heading>=360.0)|(df_dist.heading<0.0)]=1
+    df_dist['heading_flag'].ix[pd.isnull(df_dist.Heading)|\
+        (df_dist.Heading>=360.0)|(df_dist.Heading<0.0)]=1
     
     # Now do nav status flag
     df_dist['nav_status_flag']=0
     df_dist['nav_status_flag'].ix[\
-        df_dist.nav_status.isin([0,1,2,3,4,5,6,7,8,10,12,14])==False]=1
+        df_dist.Navigational_status.isin([0,1,2,3,4,5,6,7,8,10,12,14])==False]=1
         
     #eta - don't need to check eta
 #    def check_eta(row):
