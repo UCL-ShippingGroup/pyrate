@@ -177,17 +177,19 @@ class AISdb(sql.PgsqlRepository):
         else:
             imo_list = self.clean_imolist
 
-        where = ["imo = %s"]
+        where = ["imo = {}"]
         params = [imo]
-        if not from_ts is None:
-            where.append("time >= %s")
-            params.append(from_ts)
-        if not to_ts is None:
-            where.append("time <= %s")
-            params.append(to_ts)
+        #Amended EOK - no time field in this table
+        # if not from_ts is None:
+        #     where.append("time >= {}")
+        #     params.append(from_ts)
+        # if not to_ts is None:
+        #     where.append("time <= {}")
+        #     params.append(to_ts)
 
         with self.conn.cursor() as cur:
-            cur.execute("select mmsi, first_seen, last_seen from {} where {}".format(imo_list.name, ' AND '.join(where)), params)
+            print("select mmsi, first_seen, last_seen from {} where {}".format(imo_list.name, ' AND '.join(where)).format(*params))
+            cur.execute("select mmsi, first_seen, last_seen from {} where {}".format(imo_list.name, ' AND '.join(where)).format(*params))
             msg_stream = None
             # get data for each of this ship's mmsi numbers, and concat
             for mmsi, first, last in cur:
