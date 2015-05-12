@@ -188,7 +188,6 @@ class AISdb(sql.PgsqlRepository):
         #     params.append(to_ts)
 
         with self.conn.cursor() as cur:
-            print("select mmsi, first_seen, last_seen from {} where {}".format(imo_list.name, ' AND '.join(where)).format(*params))
             cur.execute("select mmsi, first_seen, last_seen from {} where {}".format(imo_list.name, ' AND '.join(where)).format(*params))
             msg_stream = None
             # get data for each of this ship's mmsi numbers, and concat
