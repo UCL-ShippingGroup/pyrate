@@ -1,6 +1,7 @@
 from geographiclib.geodesic import Geodesic
 import pandas as pd
 import numpy
+import logging
 
 def valid_mmsi(mmsi):
     """Checks if a given MMSI number is valid. Returns true if mmsi number is 9 digits long."""
@@ -44,10 +45,23 @@ def is_valid_cog(cog):
     return cog >= 0 and cog <= 360
 
 def is_valid_heading(heading):
-    return (heading >= 0 and heading < 360) or heading == 511
+    try:
+        return (heading >= 0 and heading < 360) or heading == 511
+    except:
+        #getting errors on none type for heading
+        return False
 
 def detect_outliers(msg_stream):
     """Detect erroneous points in an ordered stream of messages.
+
+    It assumes that the first message is correct as all messages are measured off this. 
+    The required straight line speed is calculated. The index at which the speed required is too high
+    is removed for the first instance of it. The previous message (ie last valid message) and the next message isc hecked for 
+    requireded speed. If valid, the latter message is then set as start_message and required speed is checked for this message and the following
+    message. And so on until we have no more messages left.  
+
+    If any messages contain nan for lon and lat (ie message 5s), these will be removed. Therefore, ensure all the relevant info from
+    these messages is cascaded through to other messages first
 
     Returns a tuple of: 
      * list of valid messages from the stream;
@@ -64,7 +78,8 @@ def detect_outliers(msg_stream):
     def get_dist(row):
         #print row
         #try:
-            straight_line=Geodesic.WGS84.Inverse(row['Latitude'],row['Longitude'],\
+
+            straight_line=Geodesic.WGS84.Inverse(row['latitude'],row['longitude'],\
                 row['next_lat'],row['next_lon'])
             dist=straight_line['s12']/1000
             return dist
@@ -73,15 +88,17 @@ def detect_outliers(msg_stream):
             
             
     df_orig=pd.DataFrame.from_records(msg_stream)
-    df_dist=pd.DataFrame.from_records(msg_stream)
-    
+    #convert to lowercase
+    df_orig.columns=[s.lower() for s in df_orig.columns]
+    df_dist=df_orig.copy()
+
     #calculate the required speed between data points
-    df_dist.sort('Time',inplace=True)    
+    df_dist.sort('time',inplace=True)    
     df_dist.reset_index(inplace=True,drop=True)
-    df_dist['next_lat']=df_dist['Latitude'].shift(periods=1)
-    df_dist['next_lon']=df_dist['Longitude'].shift(periods=1)
+    df_dist['next_lat']=df_dist['latitude'].shift(periods=1)
+    df_dist['next_lon']=df_dist['longitude'].shift(periods=1)
     df_dist['dist']=df_dist.apply(get_dist,axis=1)
-    df_dist['elapsed_time']=df_dist.Time.diff(1)
+    df_dist['elapsed_time']=df_dist.time.diff(1)
     
     
     def get_speed(row):
@@ -97,58 +114,81 @@ def detect_outliers(msg_stream):
     print(df_dist.head())
     
     df_dist['location_flag']=0
-    df_dist['location_flag'].ix[\
-            df_dist.required_speed*1.852>max_allow_speed_nm_hr]=1
+    invalid_speeds=[not is_valid_sog(s*1.852) for s in df_dist.required_speed]
+    df_dist.loc[invalid_speeds,\
+            'location_flag']=1
     df_dist['orig_loc_flag']=df_dist['location_flag'].values
     #Identify the index which was the source for the speed of greater than 50
-    df_dist['start_flag_index']=0        
-    df_dist['start_flag_index'].ix[df_dist.location_flag.diff(-1)==-1]=1
+    #df_dist['start_flag_index']=0        
+    df_dist.loc[df_dist.location_flag.diff(-1)==-1,\
+        'start_flag_index']=1
     #Identify if following messages were also outliers
     #i.e. we need to get the speed from the source message not the outlier
     #walk forward from each location flag until we find the datapoint that
     #is acceptable
-    for jj,start_indx in enumerate(df_dist.ix[df_dist.start_flag_index==1].index):
-        print("%d of %d"%(jj,len(df_dist.ix[df_dist.start_flag_index==1].index)))
+
+    #return
+    remaining_data=True 
+    start_indx=df_dist.ix[df_dist.start_flag_index==1].index.values[0]
+    while remaining_data:
         for ii in range(start_indx+1,df_dist.shape[0]):
-            try:
-                straight_line=Geodesic.WGS84.Inverse(df_dist['Latitude'].ix[ii],\
-                    df_dist['Longitude'].ix[ii],\
-                    df_dist['Latitude'].ix[start_indx],\
-                    df_dist['Longitude'].ix[start_indx])
-                dist=straight_line['s12']/(1000*1.852)
-            except:
-                dist=float('inf')
+            #print("start index: {} and end index: {} and ii: {}".format(start_indx,df_dist.shape[0],ii))
+            #try:
+            straight_line=Geodesic.WGS84.Inverse(df_dist['latitude'].ix[ii],\
+                    df_dist['longitude'].ix[ii],\
+                    df_dist['latitude'].ix[start_indx],\
+                    df_dist['longitude'].ix[start_indx])
+            dist=straight_line['s12']/(1000*1.852)
+            #except:
+            #    dist=float('inf')
             if pd.isnull(dist):
                 dist=float('inf')
             #df_dist['st_dist'].ix[ii]=dist
-            elapsed_time=(df_dist['Time'].ix[ii]-\
-                df_dist['Time'].ix[start_indx]).seconds
-            speed=dist/(numpy.max([1.0,elapsed_time])/(60.0*60))
-            if speed>max_allow_speed_nm_hr:
-                df_dist.location_flag.ix[ii]=1
+            elapsed_time=(df_dist['time'].ix[ii]-\
+                df_dist['time'].ix[start_indx])
+            speed=dist/(numpy.max([1.0,elapsed_time.total_seconds()])/(60.0*60))
+            # print(elapsed_time)
+            # print(elapsed_time.seconds)
+            # print(elapsed_time.total_seconds())
+            #print(speed)
+            if not is_valid_sog(speed):
+                # logging.info("Invalid message. Speed: {}. Dist: {}.Elapsed time: {}, total_seconds:{}".format(speed,dist,elapsed_time,elapsed_time.total_seconds()))
+                # logging.info("Start message: {}".format(df_dist[['time','longitude','latitude']].ix[start_indx].values))
+                # logging.info("End message: {}".format(df_dist[['time','longitude','latitude']].ix[ii].values))
+                # logging.info("------------------")
+                df_dist.loc[ii,'location_flag']=1
+
             else:
-                df_dist.location_flag.ix[ii]=0
+                df_dist.loc[ii,'location_flag']=0
+                #chagne the start index to this point
+                start_indx=ii
                 break
-    
+            if (ii==df_dist.shape[0]-1):
+                #end of data - jump out
+                remaining_data=False
+
      
     #Now do speed flag
     df_dist['speed_flag']=0
-    df_dist['speed_flag'].ix[pd.isnull(df_dist.SOG)|(df_dist.SOG>102.2)]=1
+    invalid_speeds=[not is_valid_sog(s*1.852) for s in df_dist.sog]
+    df_dist.loc[invalid_speeds,'speed_flag']=1
     
     # Now do course flag
-    df_dist['speed_flag']=0
-    df_dist['course_flag'].ix[pd.isnull(df_dist.COG)|\
-        (df_dist.COG>=360.0)|(df_dist.COG<0.0)]=1
+    df_dist['course_flag']=0
+    invalid_cog=[not is_valid_cog(cog) for cog in df_dist.cog]
+    df_dist.loc[invalid_cog,'course_flag']=1
     
     # Now do heaidng flag
     df_dist['heading_flag']=0
-    df_dist['heading_flag'].ix[pd.isnull(df_dist.Heading)|\
-        (df_dist.Heading>=360.0)|(df_dist.Heading<0.0)]=1
+    invalid_heading=[not is_valid_heading(heading) for heading in df_dist.heading]
+    df_dist.loc[invalid_heading,'heading_flag']=1
     
     # Now do nav status flag
     df_dist['nav_status_flag']=0
-    df_dist['nav_status_flag'].ix[\
-        df_dist.Navigational_status.isin([0,1,2,3,4,5,6,7,8,10,12,14])==False]=1
+    invalid_nav=[not valid_navigational_status(nav) for nav in df_dist.navigational_status]
+    
+    df_dist.loc[invalid_nav,'nav_status_flag']=1
+
         
     #eta - don't need to check eta
 #    def check_eta(row):
