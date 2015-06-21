@@ -227,6 +227,7 @@ def run(inp, out, dropindices=True, source=0):
             logging.info("Completed "+ name +": %d clean, %d dirty, %d invalid messages, %fs", clean_ctr, dirty_ctr, invalid_ctr, duration)
         except RuntimeError as error:
             logging.warn("Error parsing file %s: %s", name, repr(error))
+            db.conn.rollback()
 
     # wait for queued tasks to finish
     dirtyq.join()
@@ -328,8 +329,8 @@ def readcsv(fp):
                     # not enough columns, just blank missing data.
                     rowsubset[col] = ''
             yield rowsubset
-    except UnicodeDecodeError:
-        logging.warn("UnicodeDecodeError on line: {}".format(row))
+    except UnicodeDecodeError as e:
+        raise RuntimeError("UnicodeDecodeError: possible file corruption")
     except csv.Error as e:
         raise RuntimeError(e)
 
