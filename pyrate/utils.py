@@ -16,10 +16,10 @@ def valid_navigational_status(status):
     return status in VALID_NAVIGATIONAL_STATUSES
 
 def valid_longitude(lon):
-    return lon >= -180 and lon <= 180
+    return lon != None and lon >= -180 and lon <= 180
 
 def valid_latitude(lat):
-    return lat >= -90 and lat <= 90
+    return lat != None and lat >= -90 and lat <= 90
 
 def valid_imo(imo=0):
     """Check valid IMO using checksum.
