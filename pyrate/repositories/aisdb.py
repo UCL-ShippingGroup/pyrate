@@ -53,7 +53,7 @@ class AISdb(sql.PgsqlRepository):
 
     dirty_db_spec = {
         'cols': [
-            ('MMSI', 'integer'),
+            ('MMSI', 'bigint'),
             ('Time', 'timestamp without time zone'),
             ('Message_ID', 'integer'),
             ('Navigational_status', 'integer'),
