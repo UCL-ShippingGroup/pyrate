@@ -250,7 +250,6 @@ def parse_file(fp, name, ext, baddata_logfile, cleanq, dirtyq, source=0):
     # open error log csv file and write header
     with open(baddata_logfile, 'w') as errorlog:
         logwriter = csv.writer(errorlog, delimiter=',', quotechar='"')
-        logwriter.writerow(AIS_CSV_COLUMNS + ["Error_Message"]) 
 
         # message counters
         clean_ctr = 0
@@ -277,7 +276,16 @@ def parse_file(fp, name, ext, baddata_logfile, cleanq, dirtyq, source=0):
                 converted_row['source'] = source
             except ValueError as e:
                 # invalid data in row. Write it to error log
-                logwriter.writerow([row[c] for c in AIS_CSV_COLUMNS] + ["{}".format(e)])
+                if not 'raw' in row:
+                    row['raw'] = [row[c] for c in AIS_CSV_COLUMNS]
+                logwriter.writerow(row['raw'] + ["{}".format(e)])
+                invalid_ctr = invalid_ctr + 1
+                continue
+            except KeyError:
+                # missing data in row.
+                if not 'raw' in row:
+                    row['raw'] = [row[c] for c in AIS_CSV_COLUMNS]
+                logwriter.writerow(row['raw'] + ["Bad row length"])
                 invalid_ctr = invalid_ctr + 1
                 continue
 
@@ -313,6 +321,7 @@ def readcsv(fp):
     # first line is column headers. Use to extract indices of columns we are extracting
     cols = fp.readline().split(',')
     indices = {}
+    n_cols = len(cols)
     try:
         for col in AIS_CSV_COLUMNS:
             indices[col] = cols.index(col)
@@ -322,12 +331,14 @@ def readcsv(fp):
     try:
         for row in csv.reader(fp, delimiter=',', quotechar='"'):
             rowsubset = {}
-            for col in AIS_CSV_COLUMNS:
-                try:
-                    rowsubset[col] = row[indices[col]] # raw column data
-                except IndexError:
-                    # not enough columns, just blank missing data.
-                    rowsubset[col] = ''
+            rowsubset['raw'] = row
+            if len(row) == n_cols:
+                for col in AIS_CSV_COLUMNS:
+                    try:
+                        rowsubset[col] = row[indices[col]] # raw column data
+                    except IndexError:
+                        # not enough columns, just blank missing data.
+                        rowsubset[col] = ''
             yield rowsubset
     except UnicodeDecodeError as e:
         raise RuntimeError("UnicodeDecodeError: possible file corruption")
