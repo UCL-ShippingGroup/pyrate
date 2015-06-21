@@ -87,6 +87,7 @@ class AISdb(sql.PgsqlRepository):
     sources_db_spec = {
         'cols': [
             ('ID', 'SERIAL PRIMARY KEY'),
+            ('timestamp', 'timestamp without time zone DEFAULT now()'),
             ('filename', 'TEXT'),
             ('ext', 'TEXT'),
             ('invalid', 'integer'),
