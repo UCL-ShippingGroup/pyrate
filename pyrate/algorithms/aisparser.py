@@ -4,11 +4,11 @@ import logging
 import queue
 import threading
 import time
+import sys
 from datetime import datetime
 from xml.etree import ElementTree
 from pyrate import utils
 
-ALGO = True
 EXPORT_COMMANDS = [('run', 'parse messages from csv into the database.')]
 INPUTS = ["aiscsv"]
 OUTPUTS = ["aisdb", "baddata"]
@@ -295,6 +295,20 @@ def parse_file(fp, name, ext, baddata_logfile, cleanq, dirtyq, source=0):
     return (invalid_ctr, clean_ctr, dirty_ctr, time.time() - filestart)
 
 def readcsv(fp):
+    # fix for large field error. Specify max field size to the maximum convertable int value.
+    # source: http://stackoverflow.com/questions/15063936/csv-error-field-larger-than-field-limit-131072
+    max_int = sys.maxsize
+    decrement = True
+    while decrement:
+        # decrease the max_int value by factor 10 
+        # as long as the OverflowError occurs.
+        decrement = False
+        try:
+            csv.field_size_limit(max_int)
+        except OverflowError:
+            max_int = int(max_int/10)
+            decrement = True
+
     # first line is column headers. Use to extract indices of columns we are extracting
     cols = fp.readline().split(',')
     indices = {}
@@ -304,11 +318,20 @@ def readcsv(fp):
     except Exception as e:
         raise RuntimeError("Missing columns in file header: {}".format(e))
 
-    for row in csv.reader(fp, delimiter=',', quotechar='"'):
-        rowsubset = {}
-        for col in AIS_CSV_COLUMNS:
-            rowsubset[col] = row[indices[col]] # raw column data
-        yield rowsubset
+    try:
+        for row in csv.reader(fp, delimiter=',', quotechar='"'):
+            rowsubset = {}
+            for col in AIS_CSV_COLUMNS:
+                try:
+                    rowsubset[col] = row[indices[col]] # raw column data
+                except IndexError:
+                    # not enough columns, just blank missing data.
+                    rowsubset[col] = ''
+            yield rowsubset
+    except UnicodeDecodeError:
+        logging.warn("UnicodeDecodeError on line: {}".format(row))
+    except csv.Error as e:
+        raise RuntimeError(e)
 
 def readxml(fp):
     current = _empty_row()
