@@ -193,7 +193,7 @@ def run(inp, out, dropindices=True, source=0):
                 except Exception as e:
                     logging.warning("Error executing query: "+ repr(e))
             # mark this task as done
-            for i in range(n):
+            for _ in range(n):
                 q.task_done()
 
     # queue for messages to be inserted into db
@@ -216,7 +216,7 @@ def run(inp, out, dropindices=True, source=0):
             if cur.fetchone()[0] > 0:
                 logging.info("Already parsed "+ name +", skipping...")
                 continue
-        
+
         # parse file
         try:
             invalid_ctr, clean_ctr, dirty_ctr, duration = parse_file(fp, name, ext, os.path.join(log.root, os.path.basename(name)), cleanq, dirtyq, source=source)
@@ -341,14 +341,14 @@ def readcsv(fp):
                         rowsubset[col] = ''
             yield rowsubset
     except UnicodeDecodeError as e:
-        raise RuntimeError("UnicodeDecodeError: possible file corruption")
+        raise RuntimeError(e)
     except csv.Error as e:
         raise RuntimeError(e)
 
 def readxml(fp):
     current = _empty_row()
     # iterate xml 'end' events
-    for event, elem in ElementTree.iterparse(fp):
+    for _, elem in ElementTree.iterparse(fp):
         # end of aismessage
         if elem.tag == 'aismessage':
             yield current

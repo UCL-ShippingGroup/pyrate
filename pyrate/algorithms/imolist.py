@@ -5,7 +5,7 @@ EXPORT_COMMANDS = [('run', 'create or update the imo list table.')]
 INPUTS = []
 OUTPUTS = ["aisdb"]
 
-def run(inp, out):
+def run(_, out):
     create_imo_list(out['aisdb'])
 
 def create_imo_list(aisdb):

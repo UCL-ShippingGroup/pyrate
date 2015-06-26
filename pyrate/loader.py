@@ -43,7 +43,7 @@ class Loader:
             loaded_conf.read(config)
             config = loaded_conf
 
-        repopaths = config.get('globals', 'repos')
+        repopaths = str(config.get('globals', 'repos'))
         repopaths = repopaths.split(',')
 
         # load repo drivers from repopaths
@@ -63,7 +63,7 @@ class Loader:
             else:
                 repo_conf_dict[repo_name] = conf
 
-        algopaths = config.get('globals', 'algos')
+        algopaths = str(config.get('globals', 'algos'))
         algopaths = algopaths.split(',')
 
         # load algorithms from algopaths
