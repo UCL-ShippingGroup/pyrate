@@ -7,3 +7,4 @@ recommonmark
 pandas
 psycopg2
 geopy
+geographiclib
