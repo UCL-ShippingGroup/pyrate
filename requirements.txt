@@ -5,3 +5,4 @@ recommonmark
 geographiclib
 pandas
 psycopg2
+geopy

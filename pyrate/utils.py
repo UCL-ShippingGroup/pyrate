@@ -1,6 +1,6 @@
 import datetime
-import pandas as pd
-import numpy
+from geographiclib.geodesic import Geodesic
+from geopy.distance import distance
 
 def valid_mmsi(mmsi):
     """Checks if a given MMSI number is valid. Returns true if mmsi number is 9 digits long."""
@@ -79,8 +79,6 @@ def detect_location_outliers(msg_stream, as_df=False):
     
     Line of thinking is: Can I get to the next message in time? If not 'next' must be an outlier, go to next but one.
     """
-    from geographiclib.geodesic import Geodesic
-    from geopy.distance import distance
     if as_df:
         raise NotImplementedError('msg_stream cannot be DataFrame, as_df=True does not work yet.')
 
