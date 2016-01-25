@@ -3,3 +3,6 @@
 # ATTENTION: Don't remove pytest-cov and pytest as they are needed.
 pytest-cov
 pytest
+recommonmark
+pandas
+psycopg2

@@ -1,29 +1,36 @@
-======
-pyrate
-======
+=========================================
+pyrate - the Python AIS Tools Environment
+=========================================
 
-This is the documentation of **pyrate**.
+Pyrate is a software architecture and suite of algorithms for the analysis of [AIS] (http://en.wikipedia.org/wiki/Automatic_Identification_System) data originating from ship-borne transceivers and collected by satellites and shore-based receivers. The different tools engage in an efficient and modular way, hence they are substitutable and extendable in a dynamic fashion. The primary goal is to validate and clean the dataset, extract information on shipping patterns and shipping routes. To make information easily discoverable, the data is stored in a variety of database types and formats.
 
-.. note::
+Features
+--------
 
-    This is the main page of your project's `Sphinx <http://sphinx-doc.org/>`_
-    documentation. It is formatted in `reStructuredText
-    <http://sphinx-doc.org/rest.html>`__. Add additional pages by creating
-    rst-files in ``docs`` and adding them to the `toctree
-    <http://sphinx-doc.org/markup/toctree.html>`_ below. Use then
-    `references <http://sphinx-doc.org/markup/inline.html>`__ in order to link
-    them from this page, e.g. :ref:`authors <authors>` and :ref:`changes`.
-    It is also possible to refer to the documentation of other Python packages
-    with the `Python domain syntax
-    <http://sphinx-doc.org/domains.html#the-python-domain>`__. By default you
-    can reference the documentation of `Sphinx <http://sphinx.pocoo.org>`__,
-    `Python <http://docs.python.org/>`__, `matplotlib
-    <http://matplotlib.sourceforge.net>`__, `NumPy
-    <http://docs.scipy.org/doc/numpy>`__, `Scikit-Learn
-    <http://scikit-learn.org/stable>`__, `Pandas
-    <http://pandas.pydata.org/pandas-docs/stable>`__, `SciPy
-    <http://docs.scipy.org/doc/scipy/reference/>`__. You can add more by
-    extending the ``intersphinx_mapping`` in your Sphinx's ``conf.py``.
+* Python-based
+* Parallel cleaning and writing of data files (.csv, .xml) into postgreSQL
+* Building of a vessel ID&ndash;transponder ID history for ship identification
+* Injection of artificial messages to ‘navigate’ vessel around land (coming soon)
+* Machine-learning module for passage/voyage discovery (coming soon)
+* Guide with cheat sheets (under construction)
+* Visualisation of shipping activity on map using this organisation’s repository [shipviz](https://github.com/UCL-ShippingGroup/shipviz) (coming soon)
+
+Usage/requirements
+------------------
+
+Pyrate requires an installation of Python 3, Postgresql 9.2+  and optionally Neo4j 2.1.7.
+
+Contributions
+-------------
+
+We're very happy receive contributions to our repository or integrate suggestions you may have. Please get in touch with us via github, or open an issue or pull request.
+
+Further information
+-------------------
+
+For further information please visit the [pyrate wiki](https://github.com/UCL-ShippingGroup/pyrate/wiki) which contains full details of the architecture and algorithms, as well as guides for users and developers.
+For questions please visit the [issue page](https://github.com/UCL-ShippingGroup/pyrate/issues).
+
 
 Contents
 ========

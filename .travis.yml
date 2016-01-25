@@ -8,9 +8,7 @@ virtualenv:
   system_site_packages: true
 env:
   matrix:
-    - DISTRIB="ubuntu" PYTHON_VERSION="2.7" COVERAGE="true"
-    - DISTRIB="conda" PYTHON_VERSION="2.7" COVERAGE="false"
-    - DISTRIB="conda" PYTHON_VERSION="3.3" COVERAGE="false"
+    - DISTRIB="conda" PYTHON_VERSION="3.3" COVERAGE="true"
     - DISTRIB="conda" PYTHON_VERSION="3.4" COVERAGE="false"
 addons:
   apt:
@@ -19,7 +17,7 @@ addons:
       - python-pip
 install:
   - source tests/travis_install.sh
-  - pip install -r requirements.txt
+  - pip install -r test-requirements.txt
 before_script:
   - git config --global user.email "you@example.com"
   - git config --global user.name "Your Name"

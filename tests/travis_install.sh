@@ -25,11 +25,8 @@ if [[ "$DISTRIB" == "conda" ]]; then
 
     # Configure the conda environment and put it in the path using the
     # provided versions
-    conda create -n testenv --yes python=$PYTHON_VERSION pip
+    conda create -n testenv --yes python=$PYTHON_VERSION numpy scipy pandas pip
     source activate testenv
-
-elif [[ "$DISTRIB" == "ubuntu" ]]; then
-    # Use standard ubuntu packages in their default version
 fi
 
 if [[ "$COVERAGE" == "true" ]]; then
