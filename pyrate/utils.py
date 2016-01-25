@@ -3,7 +3,17 @@ from geographiclib.geodesic import Geodesic
 from geopy.distance import distance
 
 def valid_mmsi(mmsi):
-    """Checks if a given MMSI number is valid. Returns true if mmsi number is 9 digits long."""
+    """Checks if a given MMSI number is valid.
+    
+    Arguments
+    ---------
+    mmsi : int
+        An MMSI number
+    
+    Returns
+    -------  
+    Returns True if the MMSI number is 9 digits long.
+    """
     return not mmsi is None and len(str(int(mmsi))) == 9
 
 VALID_MESSAGE_IDS = range(1, 28)
@@ -23,7 +33,19 @@ def valid_latitude(lat):
 def valid_imo(imo=0):
     """Check valid IMO using checksum.
 
-    Taken from Eoin O'Keeffe's checksum_valid function in pyAIS"""
+    Arguments
+    ---------
+    imo : integer
+        An IMO ship identifier
+        
+    Returns
+    -------
+    True if the IMO number is valid
+    
+    Notes
+    -----
+    Taken from Eoin O'Keeffe's `checksum_valid` function in pyAIS
+    """
     try:
         str_imo = str(int(imo))
         if len(str_imo) != 7:
@@ -38,12 +60,47 @@ def valid_imo(imo=0):
     return False
 
 def is_valid_sog(sog):
+    """Validates speed over ground
+    
+    Arguments
+    ---------
+    sog : float
+        Speed over ground
+    
+    Returns
+    -------
+    True if speed over ground is greater than zero and less than 102.2
+    
+    """
     return sog >= 0 and sog <= 102.2
 
 def is_valid_cog(cog):
-    return cog >= 0 and cog <= 360
+    """Validates course over ground
+    
+    Arguments
+    ---------
+    cog : float
+        Course over ground
+    
+    Returns
+    -------
+    True if course over ground is greater than zero and less than 360 degrees
+    
+    """
+    return cog >= 0 and cog < 360
 
 def is_valid_heading(heading):
+    """Validates heading
+    
+    Arguments
+    ---------
+    heading : float
+        The heading of the ship in degrees
+    
+    Returns
+    -------
+    True if heading is greater than zero and less than 360 degrees
+    """
     try:
         return (heading >= 0 and heading < 360) or heading == 511
     except:
