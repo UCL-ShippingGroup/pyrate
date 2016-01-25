@@ -9,15 +9,21 @@ def run(_, out):
     create_imo_list(out['aisdb'])
 
 def create_imo_list(aisdb):
-    """Create the imo list table from mmsi, imo pairs in clean and dirty tables.
+    """Create the imo list table from MMSI, IMO pairs in clean and dirty tables.
 
-    This method collects the unique mmsi, imo pairs from a table, and the time
+    This method collects the unique MMSI, IMO pairs from a table, and the time
     intervals over-which they have been seen in the data. These tuples are
-    then upserted into the imo_list table.
+    then upserted into the `imo_list` table.
 
     On the clean table pairs with no IMO number are also collected to get the
     activity intervals of MMSI numbers. On the dirty table only messages
-    specifying an IMO are collected."""
+    specifying an IMO are collected.
+    
+    Arguments
+    ---------
+    aisdb : postgresdb
+        The database upon which to operate
+    """
 
     with aisdb.conn.cursor() as cur:
         start = time.time()
@@ -47,9 +53,15 @@ def create_imo_list(aisdb):
 
 def _upsert_imo_tuples(aisdb, result_cursor, existing_tuples):
     """Inserts or updates rows in the imo_list table depending on the mmsi, imo
-    pair's presence in the table. result_cursor is a iterator of (mmsi, imo,
-    start, end) tuples. existing_tuples is a set of (mmsi, imo) pairs which
-    should be updated rather than inserted.
+    pair's presence in the table. 
+    
+    Arguments
+    ---------
+    result_cursor :
+        An iterator of (mmsi, imo, start, end) tuples. 
+    existing_tuples : 
+        A set of (mmsi, imo) pairs which should be updated rather than inserted.
+    
     """
 
     with aisdb.conn.cursor() as insert_cur:

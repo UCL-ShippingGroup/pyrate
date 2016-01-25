@@ -3,7 +3,7 @@ import time
 import threading
 import psycopg2
 import queue
-from pyrate import utils
+from pyrate.utils import interpolate_passages, valid_imo, detect_location_outliers
 
 EXPORT_COMMANDS = [('run', 'Extract a subset of clean ships into ais_extended tables')]
 INPUTS = []
@@ -34,8 +34,11 @@ def run(inp, out, n_threads=2, dropindices=False):
     logging.info("Vessel importer done.")
 
 def filter_good_ships(aisdb):
-    """Generate a set of imo numbers and (mmsi, imo) validity intervals, for
-    ships which are deemed to be 'clean'. A clean ship is defined as one which:
+    """Generate a set of imo numbers and (mmsi, imo) validity intervals
+    
+    Generate a set of imo numbers and (mmsi, imo) validity intervals
+    for ships which are deemed to be 'clean'. 
+    A clean ship is defined as one which:
      * Has valid MMSI numbers associated with it.
      * For each MMSI number, the period of time it is associated with this IMO
     (via message number 5) overlaps with the period the MMSI number was in use.
@@ -44,15 +47,18 @@ def filter_good_ships(aisdb):
      * That none of these MMSI numbers have been used by another ship (i.e.
     another IMO number is also associated with this MMSI)
 
-    Returns the tuple (valid_imos, imo_mmsi_intervals), where:
-     * valid_imos is a set of valid imo numbers
-     * imo_mmsi_intervals is a list of (mmsi, imo, start, end) tuples, describing
-     the validity intervals of each mmsi, imo pair.
+    Return
+    ------
+    valid_imos :
+        A set of valid imo numbers
+    imo_mmsi_intervals :
+        A list of (mmsi, imo, start, end) tuples, describing the validity 
+        intervals of each (mmsi, imo) pair
     """
 
     with aisdb.conn.cursor() as cur:
         cur.execute("SELECT distinct imo from {}".format(aisdb.imolist.get_name()))
-        imo_list = [row[0] for row in cur.fetchall() if utils.valid_imo(row[0])]
+        imo_list = [row[0] for row in cur.fetchall() if valid_imo(row[0])]
         logging.info("Checking %d IMOs", len(imo_list))
         
         valid_imos = []
@@ -101,8 +107,11 @@ def filter_good_ships(aisdb):
         return (valid_imos, imo_mmsi_intervals)
 
 def cluster_table(aisdb, table):
-    """Performs a clustering of the postgresql table on the MMSI index. This
-    process significantly improves the runtime of extended table generation."""
+    """Performs a clustering of the postgresql table on the MMSI index. 
+    
+    This process significantly improves the runtime of extended table generation.
+    
+    """
     with aisdb.conn.cursor() as cur:
         index_name = table.name.lower() + "_mmsi_idx"
         logging.info("Clustering table %s on index %s. This may take a while...",
@@ -174,8 +183,8 @@ def insert_message_stream(aisdb, interval, msg_stream):
     stream into the ais_extended table."""
     mmsi, imo, start, end = interval
     # call the message filter
-    valid, invalid = utils.detect_outliers(msg_stream)
-    artificial = utils.interpolate_passages(valid)
+    valid, invalid = detect_location_outliers(msg_stream)
+    artificial = interpolate_passages(valid)
 
     aisdb.extended.insert_rows_batch(valid + artificial)
 
