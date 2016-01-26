@@ -15,10 +15,12 @@ def create_imo_list(aisdb):
     intervals over-which they have been seen in the data. These tuples are
     then upserted into the `imo_list` table.
 
+    Removes cases where ships have clashing MMSI numbers within a time threshold.
+
     On the clean table pairs with no IMO number are also collected to get the
     activity intervals of MMSI numbers. On the dirty table only messages
     specifying an IMO are collected.
-    
+
     Arguments
     ---------
     aisdb : postgresdb
@@ -53,15 +55,15 @@ def create_imo_list(aisdb):
 
 def _upsert_imo_tuples(aisdb, result_cursor, existing_tuples):
     """Inserts or updates rows in the imo_list table depending on the mmsi, imo
-    pair's presence in the table. 
-    
+    pair's presence in the table.
+
     Arguments
     ---------
     result_cursor :
-        An iterator of (mmsi, imo, start, end) tuples. 
-    existing_tuples : 
+        An iterator of (mmsi, imo, start, end) tuples.
+    existing_tuples :
         A set of (mmsi, imo) pairs which should be updated rather than inserted.
-    
+
     """
 
     with aisdb.conn.cursor() as insert_cur:
@@ -71,7 +73,7 @@ def _upsert_imo_tuples(aisdb, result_cursor, existing_tuples):
         for mmsi, imo, min_time, max_time in result_cursor:
             if (mmsi, imo) in existing_tuples:
                 insert_cur.execute("""UPDATE {} SET
-                    first_seen = LEAST(first_seen, %s), 
+                    first_seen = LEAST(first_seen, %s),
                     last_seen = GREATEST(last_seen, %s)
                     WHERE mmsi = %s AND imo = %s""".format(aisdb.imolist.get_name()), [min_time, max_time, mmsi, imo])
                 update_ctr = update_ctr + insert_cur.rowcount
