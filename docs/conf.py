@@ -71,7 +71,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'pyrate'
-copyright = u'2016, Will Usher'
+copyright = u'2016, Julia Schaumeier, Sam Macbeth, Will Usher'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -166,7 +166,7 @@ html_static_path = ['_static']
 
 # If true, SmartyPants will be used to convert quotes and dashes to
 # typographically correct entities.
-# html_use_smartypants = True
+html_use_smartypants = True
 
 # Custom sidebar templates, maps document names to template names.
 # html_sidebars = {}
