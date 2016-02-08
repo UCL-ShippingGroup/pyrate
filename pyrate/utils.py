@@ -1,9 +1,19 @@
 import datetime
-import pandas as pd
-import numpy
+from geographiclib.geodesic import Geodesic
+from geopy.distance import distance
 
 def valid_mmsi(mmsi):
-    """Checks if a given MMSI number is valid. Returns true if mmsi number is 9 digits long."""
+    """Checks if a given MMSI number is valid.
+
+    Arguments
+    ---------
+    mmsi : int
+        An MMSI number
+
+    Returns
+    -------
+    Returns True if the MMSI number is 9 digits long.
+    """
     return not mmsi is None and len(str(int(mmsi))) == 9
 
 VALID_MESSAGE_IDS = range(1, 28)
@@ -15,15 +25,49 @@ def valid_navigational_status(status):
     return status in VALID_NAVIGATIONAL_STATUSES
 
 def valid_longitude(lon):
+    """Check valid longitude.
+
+    Arguments
+    ---------
+    lon : integer
+        A longitude
+
+    Returns
+    -------
+    True if the longitude is valid
+    """
     return lon != None and lon >= -180 and lon <= 180
 
 def valid_latitude(lat):
+    """Check valid latitude.
+
+    Arguments
+    ---------
+    lon : integer
+        A latitude
+
+    Returns
+    -------
+    True if the latitude is valid
+    """
     return lat != None and lat >= -90 and lat <= 90
 
 def valid_imo(imo=0):
     """Check valid IMO using checksum.
 
-    Taken from Eoin O'Keeffe's checksum_valid function in pyAIS"""
+    Arguments
+    ---------
+    imo : integer
+        An IMO ship identifier
+
+    Returns
+    -------
+    True if the IMO number is valid
+
+    Notes
+    -----
+    Taken from Eoin O'Keeffe's `checksum_valid` function in pyAIS
+    """
     try:
         str_imo = str(int(imo))
         if len(str_imo) != 7:
@@ -38,12 +82,47 @@ def valid_imo(imo=0):
     return False
 
 def is_valid_sog(sog):
+    """Validates speed over ground
+
+    Arguments
+    ---------
+    sog : float
+        Speed over ground
+
+    Returns
+    -------
+    True if speed over ground is greater than zero and less than 102.2
+
+    """
     return sog >= 0 and sog <= 102.2
 
 def is_valid_cog(cog):
-    return cog >= 0 and cog <= 360
+    """Validates course over ground
+
+    Arguments
+    ---------
+    cog : float
+        Course over ground
+
+    Returns
+    -------
+    True if course over ground is greater than zero and less than 360 degrees
+
+    """
+    return cog >= 0 and cog < 360
 
 def is_valid_heading(heading):
+    """Validates heading
+
+    Arguments
+    ---------
+    heading : float
+        The heading of the ship in degrees
+
+    Returns
+    -------
+    True if heading is greater than zero and less than 360 degrees
+    """
     try:
         return (heading >= 0 and heading < 360) or heading == 511
     except:
@@ -51,6 +130,29 @@ def is_valid_heading(heading):
         return False
 
 def speed_calc(msg_stream, index1, index2):
+    """Computes the speed between two messages in the message stream
+
+    Parameters
+    ----------
+    msg_stream :
+        A list of dictionaries representing AIS messages for a single MMSI
+        number. Dictionary keys correspond to the column names from the
+        `ais_clean` table. The list of messages should be ordered by
+        timestamp in ascending order.
+    index1 : int
+        The index of the first message
+    index2 : int
+        The index of the second message
+
+    Returns
+    -------
+    timediff : datetime
+        The difference in time between the two messages in datetime
+    dist : float
+        The distance between messages in nautical miles
+    speed : float
+        The speed in knots
+    """
     timediff = abs(msg_stream[index2]['Time'] - msg_stream[index1]['Time'])
     try:
         dist = distance((msg_stream[index1]['Latitude'], msg_stream[index1]['Longitude']),\
@@ -59,28 +161,52 @@ def speed_calc(msg_stream, index1, index2):
         dist = Geodesic.WGS84.Inverse(msg_stream[index1]['Latitude'], msg_stream[index1]['Longitude'],\
                        msg_stream[index2]['Latitude'], msg_stream[index2]['Longitude'])['s12'] #in metres
     if timediff > datetime.timedelta(0):
-        speed = (dist*0.0005399568)/(timediff.days*24 + timediff.seconds/3600)
+        convert_metres_to_nautical_miles = 0.0005399568
+        speed = (dist * convert_metres_to_nautical_miles) / (timediff.days * 24 + timediff.seconds / 3600)
     else:
         speed = 102.2
     return timediff, dist, speed
 
 def detect_location_outliers(msg_stream, as_df=False):
-    """
-    1)  Create a linked list of all messages with non-null locations (pointing to next message)
+    """Detects outlier messages by submitting messages to a speed test
+
+    The algorithm proceeds as follows:
+
+    1)  Create a linked list of all messages with non-null locations
+        (pointing to next message)
     2)  Loop through linked list and check for location outliers:
-        A location outlier is who does not pass the speed test (<= 50kn; link is 'discarded' when not reached in time)
-        No speed test is performed when
-            - distance too small (< 0.054nm ~ 100m; catches most positioning inaccuracies)
+        * A location outlier is who does not pass the speed test (<= 50kn;
+        link is 'discarded' when not reached in time)
+        * No speed test is performed when
+            - distance too small (< 0.054nm ~ 100m; catches most positioning
+              inaccuracies)
                 => no outlier
-            - time gap too big (>= 215h ~ 9d; time it takes to get anywhere on the globe at 50kn not respecting land)
+            - time gap too big (>= 215h ~ 9d; time it takes to get anywhere on
+              the globe at 50kn not respecting land)
                 =>  next message is new 'start'
-        If an alledged outlier is found its link is set to be the current message's link
-    3)  The start of a linked list becomes special attention: if speed check fails, the subsequent link is tested
-    
-    Line of thinking is: Can I get to the next message in time? If not 'next' must be an outlier, go to next but one.
+        If an alledged outlier is found its link is set to be the current
+        message's link
+    3)  The start of a linked list becomes special attention: if speed check
+        fails, the subsequent link is tested
+
+    Line of thinking is: Can I get to the next message in time? If not 'next'
+    must be an outlier, go to next but one.
+
+    Parameters
+    ----------
+    msg_stream :
+        A list of dictionaries representing AIS messages for a single MMSI
+        number. Dictionary keys correspond to the column names from the
+        `ais_clean` table. The list of messages should be ordered by
+        timestamp in ascending order.
+    as_df : bool, optional
+        Set to True if `msg_stream` are passed as a pandas DataFrame
+
+    Returns
+    -------
+    outlier_rows :
+        The rows in the message stream which are outliers
     """
-    from geographiclib.geodesic import Geodesic
-    from geopy.distance import distance
     if as_df:
         raise NotImplementedError('msg_stream cannot be DataFrame, as_df=True does not work yet.')
 
@@ -154,11 +280,21 @@ def detect_location_outliers(msg_stream, as_df=False):
 def interpolate_passages(msg_stream):
     """Interpolate far apart points in an ordered stream of messages.
 
-    Returns list of artificial messages to fill in gaps/navigate around land.
+    Parameters
+    ----------
+    msg_stream :
+        A list of dictionaries representing AIS messages for a single MMSI
+        number. Dictionary keys correspond to the column names from the
+        `ais_clean` table. The list of messages should be ordered by
+        timestamp in ascending order.
 
-    msg_stream is a list of dictionaries representing AIS messages for a single
-    MMSI number. Dictionary keys correspond to the column names from the
-    ais_clean table. The list of messages should be ordered by timestamp in
-    ascending order.
+    Returns
+    -------
+    artificial_messages : list
+        A list of artificial messages to fill in gaps/navigate around land.
+
+
     """
-    return []
+    artificial_messages = []
+
+    return artificial_messages
