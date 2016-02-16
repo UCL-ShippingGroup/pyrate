@@ -1,25 +1,25 @@
-# Travis configuration file using the build matrix feature
-# Read more under http://docs.travis-ci.com/user/build-configuration/
-
 sudo: false
 language: python
 virtualenv:
   system_site_packages: true
 env:
   matrix:
-    - DISTRIB="conda" PYTHON_VERSION="3.3" COVERAGE="true"
-    - DISTRIB="conda" PYTHON_VERSION="3.4" COVERAGE="false"
+  - DISTRIB="conda" PYTHON_VERSION="3.3" COVERAGE="true"
+  - DISTRIB="conda" PYTHON_VERSION="3.4" COVERAGE="false"
 addons:
   apt:
     packages:
-      - git
-      - python-pip
+    - git
+    - python-pip
 install:
-  - source tests/travis_install.sh
-  - pip install -r test-requirements.txt
+- source tests/travis_install.sh
+- pip install -r test-requirements.txt
 script:
-  - python setup.py test
+- python setup.py test
 after_success:
-  - if [[ "$COVERAGE" == "true" ]]; then coveralls || echo "failed"; fi
+- if [[ "$COVERAGE" == "true" ]]; then coveralls || echo "failed"; fi
 cache:
-  - apt
+- apt
+notifications:
+  slack:
+    secure: WXSLHip2Aj0FtFrquC7SOOdg5RlepKDSEWKlYTh+Av2WjYUj8d7QJVwaQkDBV5Jt2NX9zbA7rhTy3zcF7yVZGQzPTCedd+XoAUWCDCb7lYEfTpuYbUgs7IGKpzGnWpdNtj64Sp7m9zBMgp+L5fs5CVR88rFu/7s1zgknbV22YWFtSfJFMB0Vk8yeLUuyY6rXACl/DnfCkONlN4PJPEOd1Uj4gpJB1PgyyjO3sbNx7PiLrCMtX/Dg+7vmBG8eQMyZGWEMjHa82RHEaMpwLB/WZKF5Wpsb6NhTWI8f6j0b+GhesaghWwTYMJzMb6SQSL9KFXHxermMl75eRQPABsOUd5EoUcopPgJ89C1UK6WQRcvpHBjODixulgmoIgVpMCwDdhaWrpkRyAJc/o3NqyVmnPOUkVMhBGaEpFMLjmjhC+mG17a6TRqFVT8bQlVxQoCx5ZwzMf7ZbM2jZkwsYtbIjsyEgEOacsaYHoVeGFwx7QNqUkUnhS8Y/uORkwfcTQRLOS6QmaIdX6drL5gIcna2BVctNcCLRvRHJup0OlJJYASSqw4DSAtGDJ2LttrjN6RRAoB4WLJBN2vr6mUes/vf9paHTOGBP2qXKtusRGTES2276u3vO4JAIIjb9r52WDKsos9SgbXWs5IZ+k2aZnQnUE8agregUG8OH7Y7e+qL1GY=
