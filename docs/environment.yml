@@ -18,7 +18,7 @@ dependencies:
 - scipy
 - setuptools
 - six
-- snowballstemmer=
+- snowballstemmer
 - sphinx
 - sphinx_rtd_theme
 - sqlite
@@ -28,7 +28,7 @@ dependencies:
 - zlib
 - pip:
   - commonmark
-  - geographiclib==1.46.3
-  - geopy==1.11.0
-  - recommonmark==0.4.0
-  - sphinx-rtd-theme==0.1.7
+  - geographiclib
+  - geopy
+  - recommonmark
+  - sphinx-rtd-theme
