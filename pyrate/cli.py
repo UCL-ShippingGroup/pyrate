@@ -3,6 +3,10 @@ from pyrate import loader
 import argparse
 
 def main():
+    """ The command line interface
+    
+    Type `pyrate --help` for help on how to use the command line interface
+    """
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
     
