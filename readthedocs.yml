@@ -1,0 +1,8 @@
+conda:
+    file: docs/environment.yml
+python:
+   setup_py_install: true
+# Build PDF too
+formats:
+        - pdf
+requirements_file: requirements.txt
