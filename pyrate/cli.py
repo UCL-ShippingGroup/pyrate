@@ -1,3 +1,5 @@
+"""Provides a command line interface to the pyrate library
+"""
 import logging
 from pyrate import loader
 import argparse
