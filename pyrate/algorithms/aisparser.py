@@ -1,3 +1,6 @@
+""" Parses the AIS data from csv of xml files and populates the AIS database
+"""
+
 import os
 import csv
 import logging
@@ -10,7 +13,9 @@ from xml.etree import ElementTree
 from pyrate import utils
 
 EXPORT_COMMANDS = [('run', 'parse messages from csv into the database.')]
+# Repository used for input to the algorithm
 INPUTS = ["aiscsv"]
+# Repositories used for output from the algorithm
 OUTPUTS = ["aisdb", "baddata"]
 
 def parse_timestamp(s):
@@ -161,11 +166,14 @@ CONTAINS_LAT_LON = set([1, 2, 3, 4, 9, 11, 17, 18, 19, 21, 27])
 
 def validate_row(row):
     # validate MMSI, message_id and IMO
-    if not utils.valid_mmsi(row[MMSI]) or not utils.valid_message_id(row[MESSAGE_ID]) or not check_imo(row[IMO]):
+    if not utils.valid_mmsi(row[MMSI]) \
+       or not utils.valid_message_id(row[MESSAGE_ID]) \
+       or not check_imo(row[IMO]):
         raise ValueError("Row invalid")
     # check lat long for messages which should contain it
     if row[MESSAGE_ID] in CONTAINS_LAT_LON:
-        if not (utils.valid_longitude(row[LONGITUDE]) and utils.valid_latitude(row[LATITUDE])):
+        if not (utils.valid_longitude(row[LONGITUDE]) and \
+           utils.valid_latitude(row[LATITUDE])):
             raise ValueError("Row invalid (lat,lon)")
     # otherwise set them to None
     else:
@@ -180,9 +188,22 @@ def validate_row(row):
     return row
 
 def get_data_source(name):
-    """Guesses data source from file name. Returns an integer corresponding to this source.
+    """Guesses data source from file name.
 
-    If the name contains 'terr' then we guess terrestrial data, otherwise we assume satellite."""
+    If the name contains 'terr' then we guess terrestrial data,
+    otherwise we assume satellite.
+
+    Argument
+    --------
+    name : str
+        File name
+
+    Returns
+    -------
+    int
+        0 if satellite, 1 if terrestrial
+
+    """
     if name.find('terr') != -1:
         # terrestrial
         return 1
@@ -191,18 +212,23 @@ def get_data_source(name):
         return 0
 
 def run(inp, out, dropindices=True, source=0):
-    """Populate the AIS_Raw database with messages from the AIS csv files.
+    """Populate the AIS_Raw database with messages from the AIS csv files
 
     Arguments
     ---------
-    inp : dict
-        A dictionary of open connections to the repositories
-    out : dict
-        A dictionary of open connections to the repositories
-    dropindices : bool
-        Speeds up insertion of data into tables
-    source : int, default=0
-        0 is satellite, 1 is terrestrial
+    inp : str
+        The name of the repositor(-y/-ies) as defined in the global variable
+        `INPUTS`
+    out : str
+        The name of the repositor(-y/-ies) as defined in the global variable
+        `OUTPUTS`
+    dropindices : bool, optional, default=True
+        Drop indexes for faster insert
+    source : int, optional, default=0
+        Indicates terrestrial (1) or satellite data (0)
+
+    Returns
+    -------
     """
 
     files = inp['aiscsv']
@@ -214,9 +240,11 @@ def run(inp, out, dropindices=True, source=0):
         db.clean.drop_indices()
         db.dirty.drop_indices()
 
-    # worker thread which takes batches of tuples from the queue to be
-    # inserted into db
     def sqlworker(q, table):
+        """ Worker thread
+
+        Takes batches of tuples from the queue to be inserted into the database
+        """
         while True:
             msgs = [q.get()]
             while not q.empty():
@@ -238,9 +266,9 @@ def run(inp, out, dropindices=True, source=0):
     cleanq = queue.Queue(maxsize=1000000)
     # set up processing pipeline threads
     clean_thread = threading.Thread(target=sqlworker, daemon=True,
-                                   args=(cleanq, db.clean))
+                                    args=(cleanq, db.clean))
     dirty_thread = threading.Thread(target=sqlworker, daemon=True,
-                                   args=(dirtyq, db.dirty))
+                                    args=(dirtyq, db.dirty))
     dirty_thread.start()
     clean_thread.start()
 
@@ -249,19 +277,30 @@ def run(inp, out, dropindices=True, source=0):
     for fp, name, ext in files.iterfiles():
         # check if we've already parsed this file
         with db.conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) FROM " + db.sources.name + " WHERE filename = %s AND source = %s", [name, source])
+            cur.execute("SELECT COUNT(*) FROM " + db.sources.name +
+                        " WHERE filename = %s AND source = %s",
+                        [name, source])
             if cur.fetchone()[0] > 0:
                 logging.info("Already parsed "+ name +", skipping...")
                 continue
 
         # parse file
         try:
-            invalid_ctr, clean_ctr, dirty_ctr, duration = parse_file(fp, name, ext, os.path.join(log.root, os.path.basename(name)), cleanq, dirtyq, source=source)
+            log_path = os.path.join(log.root, os.path.basename(name))
+            invalid_ctr, clean_ctr, dirty_ctr, duration = parse_file(fp,
+                            name, ext, log_path, cleanq, dirtyq, source=source)
             dirtyq.join()
             cleanq.join()
-            db.sources.insert_row({'filename': name, 'ext': ext, 'invalid': invalid_ctr, 'clean': clean_ctr, 'dirty': dirty_ctr, 'source': source})
+            db.sources.insert_row({'filename': name,
+                                   'ext': ext,
+                                   'invalid': invalid_ctr,
+                                   'clean': clean_ctr,
+                                   'dirty': dirty_ctr,
+                                   'source': source})
             db.conn.commit()
-            logging.info("Completed "+ name +": %d clean, %d dirty, %d invalid messages, %fs", clean_ctr, dirty_ctr, invalid_ctr, duration)
+            logging.info("Completed " + name +
+                         ": %d clean, %d dirty, %d invalid messages, %fs",
+                         clean_ctr, dirty_ctr, invalid_ctr, duration)
         except RuntimeError as error:
             logging.warn("Error parsing file %s: %s", name, repr(error))
             db.conn.rollback()
@@ -278,7 +317,9 @@ def run(inp, out, dropindices=True, source=0):
         logging.info("Rebuilding table indices...")
         db.clean.create_indices()
         db.dirty.create_indices()
-        logging.info("Finished building indices, time elapsed = %fs", time.time() - start)
+        logging.info("Finished building indices, time elapsed = %fs",
+                     time.time() - start)
+
 
 def parse_file(fp, name, ext, baddata_logfile, cleanq, dirtyq, source=0):
     """ Parses a file containing AIS data
@@ -370,6 +411,7 @@ def parse_file(fp, name, ext, baddata_logfile, cleanq, dirtyq, source=0):
 
     return (invalid_ctr, clean_ctr, dirty_ctr, time.time() - filestart)
 
+
 def readcsv(fp):
     """ Returns a dictionary of the subset of columns required
 
@@ -405,7 +447,8 @@ def readcsv(fp):
             max_int = int(max_int/10)
             decrement = True
 
-    # first line is column headers. Use to extract indices of columns we are extracting
+    # First line is column headers.
+    # Use to extract indices of columns we are extracting
     cols = fp.readline().split(',')
     indices = {}
     n_cols = len(cols)
