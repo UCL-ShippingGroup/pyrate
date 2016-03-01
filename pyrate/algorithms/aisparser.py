@@ -19,7 +19,7 @@ def parse_timestamp(s):
 def int_or_null(s):
     if len(s) == 0:
         return None
-    else:
+        else:
         return int(s)
 
 def float_or_null(s):
@@ -166,7 +166,19 @@ def get_data_source(name):
         return 0
 
 def run(inp, out, dropindices=True, source=0):
-    """Populate the AIS_Raw database with messages from the AIS csv files."""
+    """Populate the AIS_Raw database with messages from the AIS csv files.
+
+    Arguments
+    ---------
+    inp : dict
+        A dictionary of open connections to the repositories
+    out : dict
+        A dictionary of open connections to the repositories
+    dropindices : bool
+        Speeds up insertion of data into tables
+    source : int, default=0
+        0 is satellite, 1 is terrestrial
+    """
 
     files = inp['aiscsv']
     db = out['aisdb']
@@ -309,7 +321,7 @@ def readcsv(fp):
     max_int = sys.maxsize
     decrement = True
     while decrement:
-        # decrease the max_int value by factor 10 
+        # decrease the max_int value by factor 10
         # as long as the OverflowError occurs.
         decrement = False
         try:
