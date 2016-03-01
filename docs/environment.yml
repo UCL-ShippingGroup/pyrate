@@ -1,35 +1,34 @@
 name: pyrate
 dependencies:
-- alabaster=0.7.3=py33_0
-- babel=2.0=py33_0
-- docutils=0.12=py33_0
-- jinja2=2.8=py33_0
-- markupsafe=0.23=py33_0
-- numpy=1.9.2=py33_0
-- openssl=1.0.1k=1
-- pandas=0.16.2=np19py33_0
-- pip=8.0.2=py33_0
-- psycopg2=2.6=py33_1
-- pygments=2.0.2=py33_0
+- alabaster
+- babel
+- docutils
+- jinja2
+- markupsafe
+- numpy
+- openssl
+- pandas
+- pip
+- psycopg2
+- pygments
 - python=3.3.5=3
-- python-dateutil=2.4.2=py33_0
-- pytz=2015.7=py33_0
-- readline=6.2=2
-- scipy=0.16.0=np19py33_1
-- setuptools=19.6.2=py33_0
-- six=1.10.0=py33_0
-- snowballstemmer=1.2.0=py33_0
-- sphinx=1.3.1=py33_0
-- sphinx_rtd_theme=0.1.7=py33_0
-- sqlite=3.9.2=0
-- tk=8.5.18=0
-- wheel=0.29.0=py33_0
-- xz=5.0.5=1
-- zlib=1.2.8=0
+- python-dateutil
+- pytz
+- readline
+- scipy
+- setuptools
+- six
+- snowballstemmer
+- sphinx
+- sphinx_rtd_theme
+- sqlite
+- tk
+- wheel
+- xz
+- zlib
 - pip:
-  - commonmark==0.5.4
-  - geographiclib==1.46.3
-  - geopy==1.11.0
-  - recommonmark==0.4.0
-  - sphinx-rtd-theme==0.1.7
-
+  - commonmark
+  - geographiclib
+  - geopy
+  - recommonmark
+  - sphinx-rtd-theme
