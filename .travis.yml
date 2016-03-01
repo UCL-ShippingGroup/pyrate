@@ -2,6 +2,8 @@ sudo: false
 language: python
 virtualenv:
   system_site_packages: true
+services:
+  - postgresql
 env:
   matrix:
   - DISTRIB="conda" PYTHON_VERSION="3.3" COVERAGE="true"
@@ -14,6 +16,9 @@ addons:
 install:
 - source tests/travis_install.sh
 - pip install -r test-requirements.txt
+before_script:
+  - psql -U postgres -c "create extension postgis"
+  - psql -c 'create database aisdb;' -U postgres
 script:
 - python setup.py test
 after_success:
