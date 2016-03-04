@@ -29,11 +29,15 @@ class PgsqlRepository(object):
 
 class Table(object):
 
-    def __init__(self, db, name, cols, indices=None, constraint=None):
+    def __init__(self, db, name, cols, indices=None, constraint=None,
+                 foreign_keys=None):
         self.db = db
         self.name = name
         self.cols = cols
         self.indices = indices
+        self.foreign_keys = foreign_keys
+        if self.foreign_keys is None:
+            self.foreign_keys = []
         if self.indices is None:
             self.indices = []
         self.constraint = constraint
@@ -45,9 +49,20 @@ class Table(object):
 
     def create(self):
         with self.db.conn.cursor() as cur:
-            logging.info("CREATING "+ self.name +" table")
-            columns = ["\"{}\" {}".format(c[0].lower(), c[1]) for c in self.cols]
-            sql = "CREATE TABLE IF NOT EXISTS \""+ self.name +"\" (" + ','.join(columns + self.constraint) + ")"
+            logging.info("CREATING " + self.name + " table")
+            columns = []
+            fks = [x[0] for x in self.foreign_keys]
+            for c in self.cols:
+                if c[0].lower() not in fks:
+                    columns.append("\"{}\" {}".format(c[0].lower(), c[1]))
+                else:
+                    fk = [x for x in self.foreign_keys if x[0] == c[0]]
+                    columns.append("\"{0}\" {1} REFERENCES {2} (\"{3}\")".format(
+                        c[0].lower(), c[1], fk[0][1], fk[0][2]))
+            # columns = ["\"{}\" {}".format(c[0].lower(),
+            # c[1]) for c in self.cols]
+            sql = "CREATE TABLE IF NOT EXISTS \"" + self.name + \
+                "\" (" + ','.join(columns + self.constraint) + ")"
             cur.execute(sql)
             self.db.conn.commit()
 
