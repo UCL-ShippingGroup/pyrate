@@ -57,7 +57,7 @@ class Table(object):
                     columns.append("\"{}\" {}".format(c[0].lower(), c[1]))
                 else:
                     fk = [x for x in self.foreign_keys if x[0] == c[0]]
-                    columns.append("\"{}\" {} REFERENCES {} (\"{}\")".format(
+                    columns.append("\"{0}\" {1} REFERENCES {2} (\"{3}\")".format(
                         c[0].lower(), c[1], fk[0][1], fk[0][2]))
             # columns = ["\"{}\" {}".format(c[0].lower(),
             # c[1]) for c in self.cols]
