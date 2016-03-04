@@ -55,7 +55,8 @@ class FileRepository:
             for filename in files:
                 _, ext = os.path.splitext(filename)
                 if self.allowed_extensions == None or ext in self.allowed_extensions:
-                    with open(os.path.join(root, filename), 'r') as fp:
+                    # hitting errors with decoding the data, utf-8 seems to sort it
+                    with open(os.path.join(root, filename), 'r', encoding='utf-8') as fp:
                         yield (fp, filename, ext)
                 # zip file auto-extract
                 elif self.unzip and ext == '.zip':

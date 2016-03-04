@@ -111,6 +111,7 @@ class Table(object):
         with self.db.conn.cursor() as cur:
             columnlist = '(' + ','.join([c.lower() for c in data.keys()]) + ')'
             tuplestr = "(" + ",".join("%({})s".format(i) for i in data.keys()) + ")"
+            # logging.debug(cur.mogrify("INSERT INTO " + self.name + " "+ columnlist + " VALUES "+ tuplestr, data))
             cur.execute("INSERT INTO " + self.name + " "+ columnlist + " VALUES "+ tuplestr, data)
 
     def insert_rows_batch(self, rows):
