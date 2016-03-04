@@ -255,7 +255,8 @@ class AISExtendedTable(sql.Table):
         super(AISExtendedTable, self).create()
         with self.db.conn.cursor() as cur:
             # trigger for GIS location generation
-            cur.execute("""CREATE OR REPLACE FUNCTION location_insert() RETURNS trigger AS '
+            try:
+                cur.execute("""CREATE OR REPLACE FUNCTION location_insert() RETURNS trigger AS '
                         BEGIN
                             NEW."location" := ST_SetSRID(ST_MakePoint(NEW.longitude, NEW.latitude),4326);
                             RETURN NEW;
@@ -264,6 +265,9 @@ class AISExtendedTable(sql.Table):
                         CREATE TRIGGER {0}_gis_insert 
                         BEFORE INSERT OR UPDATE ON {0} FOR EACH ROW EXECUTE PROCEDURE location_insert();
                         """.format(self.name))
+            except psycopg2.ProgrammingError:
+                logging.info("{}_gis_insert already exists".format(self.name))
+                self.db.conn.rollback()
         self.db.conn.commit()
 
     def create_indices(self):
