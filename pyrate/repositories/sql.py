@@ -122,7 +122,7 @@ class Table(object):
             tuplestr = "(" + ",".join("%({})s".format(i) for i in rows[0]) + ")"
             # create a single query to insert list of tuples
             # note that mogrify generates a binary string which we must first decode to ascii.
-            args = ','.join([cur.mogrify(tuplestr, x).decode('ascii') for x in rows])
+            args = ','.join([cur.mogrify(tuplestr, x).decode('utf-8') for x in rows])
             cur.execute("INSERT INTO " + self.name + " "+ columnlist + " VALUES "+ args)
 
     def copy_from_file(self, fname, columns):
