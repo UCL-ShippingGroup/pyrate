@@ -8,6 +8,7 @@ import pkgutil
 import inspect
 import contextlib
 from configparser import ConfigParser
+from pyrate import get_resource_filename
 
 def load_module(name, paths):
     """Load module name using the given search paths."""
@@ -43,15 +44,23 @@ class Loader:
             loaded_conf.read(config)
             config = loaded_conf
 
-        repopaths = str(config.get('globals', 'repos'))
-        repopaths = repopaths.split(',')
-        repopaths.extend('pyrate/repositories')
+        if 'globals' in config:
+            repopaths = str(config.get('globals', 'repos'))
+            repopaths = repopaths.split(',')
+            repopaths.extend([get_resource_filename('repositories')])
+        else:
+            repopaths = [get_resource_filename('repositories')]
+
+        logging.debug("Paths to repositories: {}".format(repopaths))
 
         # load repo drivers from repopaths
         repo_drivers = load_all_modules(repopaths)
 
         # get repo configurations from config
-        repo_config = set(config.sections()) - set(['globals'])
+        if 'globals' in config:
+            repo_config = set(config.sections()) - set(['globals'])
+        else:
+            repo_config = set(config.sections())
 
         # check which repos we have drivers for
         repo_conf_dict = {}
@@ -64,11 +73,15 @@ class Loader:
             else:
                 repo_conf_dict[repo_name] = conf
 
-        algopaths = str(config.get('globals', 'algos'))
-        algopaths = algopaths.split(',')
-        algopaths.extend('pyrate/algorithms')
+        if 'globals' in config:
+            algopaths = str(config.get('globals', 'algos'))
+            algopaths = algopaths.split(',')
+            algopaths.extend([get_resource_filename('algorithms')])
+        else:
+            algopaths = [get_resource_filename('algorithms')]
 
         # load algorithms from algopaths
+        logging.debug("Paths to algorithms: {}".format(algopaths))
         algorithms = load_all_modules(algopaths)
 
         self.repo_drivers = repo_drivers
