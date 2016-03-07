@@ -8,6 +8,7 @@ import pkgutil
 import inspect
 import contextlib
 from configparser import ConfigParser
+from pyrate import get_resource_filename
 
 def load_module(name, paths):
     """Load module name using the given search paths."""
@@ -27,30 +28,46 @@ def load_all_modules(paths):
             logging.warn("Error importing module "+ name +": {}".format(error))
     return modules
 
+configfilepath = get_resource_filename('config/default.conf')
+
 DEFAULT_CONFIG = ConfigParser()
-DEFAULT_CONFIG.add_section('globals')
-DEFAULT_CONFIG.set('globals', 'repos', 'pyrate/repositories')
-DEFAULT_CONFIG.set('globals', 'algos', 'pyrate/algorithms')
+# DEFAULT_CONFIG.add_section('globals')
+# DEFAULT_CONFIG.set('globals', 'repos', 'pyrate/repositories')
+# DEFAULT_CONFIG.set('globals', 'algos', 'pyrate/algorithms')
 
 class Loader:
-    """The Loader joins together data repositories and algorithms, 
+    """The Loader joins together data repositories and algorithms,
     and executes operations on them."""
 
-    def __init__(self, config):
+    def __init__(self, config=None):
         # load from file if path provided
-        if isinstance(config, str):
-            loaded_conf = ConfigParser()
-            loaded_conf.read(config)
+        loaded_conf = ConfigParser()
+        if config is None:
+            loaded_conf.read(configfilepath)
             config = loaded_conf
+        else:
+            if isinstance(config, str):
+                loaded_conf.read(config)
+                config = loaded_conf
 
-        repopaths = str(config.get('globals', 'repos'))
-        repopaths = repopaths.split(',')
+        if 'globals' in config:
+            repopaths = str(config.get('globals', 'repos'))
+            repopaths = repopaths.split(',')
+            repopaths.extend([get_resource_filename('repositories')])
+        else:
+            repopaths = [get_resource_filename('repositories')]
+
+        logging.debug("Paths to repositories: {}".format(repopaths))
 
         # load repo drivers from repopaths
         repo_drivers = load_all_modules(repopaths)
 
         # get repo configurations from config
-        repo_config = set(config.sections()) - set(['globals'])
+        if 'globals' in config:
+            repo_config = set(config.sections()) - set(['globals'])
+        else:
+            repo_config = set(config.sections())
+
 
         # check which repos we have drivers for
         repo_conf_dict = {}
@@ -63,10 +80,15 @@ class Loader:
             else:
                 repo_conf_dict[repo_name] = conf
 
-        algopaths = str(config.get('globals', 'algos'))
-        algopaths = algopaths.split(',')
+        if 'globals' in config:
+            algopaths = str(config.get('globals', 'algos'))
+            algopaths = algopaths.split(',')
+            algopaths.extend([get_resource_filename('algorithms')])
+        else:
+            algopaths = [get_resource_filename('algorithms')]
 
         # load algorithms from algopaths
+        logging.debug("Paths to algorithms: {}".format(algopaths))
         algorithms = load_all_modules(algopaths)
 
         self.repo_drivers = repo_drivers

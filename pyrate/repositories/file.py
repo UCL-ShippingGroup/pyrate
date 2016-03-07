@@ -45,7 +45,7 @@ class FileRepository:
 
     def iterfiles(self):
         """
-        Iterate files in this file repository. Returns a generator of 3-tuples, 
+        Iterate files in this file repository. Returns a generator of 3-tuples,
         containing a handle, filename and file extension of the current opened file.
         """
         logging.debug("Iterating files in "+ self.root)
@@ -55,7 +55,6 @@ class FileRepository:
             for filename in files:
                 _, ext = os.path.splitext(filename)
                 if self.allowed_extensions == None or ext in self.allowed_extensions:
-                    # hitting errors with decoding the data, utf-8 seems to sort it
                     with open(os.path.join(root, filename), 'r', encoding='utf-8') as fp:
                         yield (fp, filename, ext)
                 # zip file auto-extract
@@ -66,7 +65,7 @@ class FileRepository:
                                 _, ext = os.path.splitext(zname)
                                 if self.allowed_extensions == None or ext in self.allowed_extensions:
                                     with z.open(zname, 'r') as fp:
-                                        # zipfile returns a binary file, so we require a 
+                                        # zipfile returns a binary file, so we require a
                                         # TextIOWrapper to decode it
                                         yield (io.TextIOWrapper(fp, encoding='ascii'), zname, ext)
                     except (zipfile.BadZipFile, RuntimeError) as error:

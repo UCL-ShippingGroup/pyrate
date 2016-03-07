@@ -118,8 +118,10 @@ class Table(object):
         # check there are rows in insert
         if len(rows) == 0:
             return
+        # logging.debug("Row to insert: {}".format(rows[0]))
         with self.db.conn.cursor() as cur:
             columnlist = '(' + ','.join([c.lower() for c in rows[0].keys()]) + ')'
+            # logging.debug("Using columns: {}".format(columnlist))
             tuplestr = "(" + ",".join("%({})s".format(i) for i in rows[0]) + ")"
             # create a single query to insert list of tuples
             # note that mogrify generates a binary string which we must first decode to ascii.
