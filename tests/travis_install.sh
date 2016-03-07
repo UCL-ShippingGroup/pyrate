@@ -21,7 +21,7 @@ if [[ "$DISTRIB" == "conda" ]]; then
 
     # Configure the conda environment and put it in the path using the
     # provided versions
-    conda create -n testenv --yes python=$PYTHON_VERSION numpy scipy pandas pip
+    conda create -n testenv --yes python=$PYTHON_VERSION numpy scipy pandas pip cffi html5lib lxml
     source activate testenv
 fi
 

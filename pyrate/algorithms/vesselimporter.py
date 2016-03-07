@@ -1,3 +1,6 @@
+""" Extracts a subset of clean ships into ais_extended tables
+
+"""
 import logging
 import time
 import threading
@@ -35,9 +38,9 @@ def run(inp, out, n_threads=2, dropindices=False):
 
 def filter_good_ships(aisdb):
     """Generate a set of imo numbers and (mmsi, imo) validity intervals
-    
+
     Generate a set of imo numbers and (mmsi, imo) validity intervals
-    for ships which are deemed to be 'clean'. 
+    for ships which are deemed to be 'clean'.
     A clean ship is defined as one which:
      * Has valid MMSI numbers associated with it.
      * For each MMSI number, the period of time it is associated with this IMO
@@ -52,7 +55,7 @@ def filter_good_ships(aisdb):
     valid_imos :
         A set of valid imo numbers
     imo_mmsi_intervals :
-        A list of (mmsi, imo, start, end) tuples, describing the validity 
+        A list of (mmsi, imo, start, end) tuples, describing the validity
         intervals of each (mmsi, imo) pair
     """
 
@@ -60,7 +63,7 @@ def filter_good_ships(aisdb):
         cur.execute("SELECT distinct imo from {}".format(aisdb.imolist.get_name()))
         imo_list = [row[0] for row in cur.fetchall() if valid_imo(row[0])]
         logging.info("Checking %d IMOs", len(imo_list))
-        
+
         valid_imos = []
         imo_mmsi_intervals = []
 
@@ -85,9 +88,9 @@ def filter_good_ships(aisdb):
                 if last_end != None and start < last_end:
                     valid = False
                     #logging.info("IMO: %s, overlapping MMSI intervals", imo)
-                    break;
+                    break
                 last_end = end
-            
+
             if valid:
                 # check for other users of this mmsi number
                 mmsi_list = [row[0] for row in mmsi_ranges]
@@ -103,14 +106,14 @@ def filter_good_ships(aisdb):
                 else:
                     pass
                     #logging.info("IMO: %s, reuse of MMSI", imo)
-    
+
         return (valid_imos, imo_mmsi_intervals)
 
 def cluster_table(aisdb, table):
-    """Performs a clustering of the postgresql table on the MMSI index. 
-    
+    """Performs a clustering of the postgresql table on the MMSI index.
+
     This process significantly improves the runtime of extended table generation.
-    
+
     """
     with aisdb.conn.cursor() as cur:
         index_name = table.name.lower() + "_mmsi_idx"
@@ -120,8 +123,8 @@ def cluster_table(aisdb, table):
 
 def generate_extended_table(aisdb, intervals, n_threads=2):
 
-    logging.info("Inserting %d squeaky clean MMSIs", len(intervals))     
-    
+    logging.info("Inserting %d squeaky clean MMSIs", len(intervals))
+
     start = time.time()
 
     interval_q = queue.Queue()
@@ -189,19 +192,19 @@ def insert_message_stream(aisdb, interval, msg_stream):
     aisdb.extended.insert_rows_batch(valid + artificial)
 
     # mark the work we've done
-    aisdb.action_log.insert_row({'action': "import", 
+    aisdb.action_log.insert_row({'action': "import",
                                  'mmsi': mmsi,
-                                 'ts_from': start, 
+                                 'ts_from': start,
                                  'ts_to': end,
                                  'count': len(valid)})
-    aisdb.action_log.insert_row({'action': "outlier detection (noop)", 
-                                 'mmsi': mmsi, 
-                                 'ts_from': start, 
+    aisdb.action_log.insert_row({'action': "outlier detection (noop)",
+                                 'mmsi': mmsi,
+                                 'ts_from': start,
                                  'ts_to': end,
                                  'count': len(invalid)})
-    aisdb.action_log.insert_row({'action': "interpolation (noop)", 
-                                 'mmsi': mmsi, 
-                                 'ts_from': start, 
+    aisdb.action_log.insert_row({'action': "interpolation (noop)",
+                                 'mmsi': mmsi,
+                                 'ts_from': start,
                                  'ts_to': end,
                                  'count': len(artificial)})
     upsert_interval_to_imolist(aisdb, mmsi, imo, start, end)
@@ -209,14 +212,14 @@ def insert_message_stream(aisdb, interval, msg_stream):
 def get_remaining_interval(aisdb, mmsi, imo, start, end):
     with aisdb.conn.cursor() as cur:
         try:
-            cur.execute("SELECT tsrange(%s, %s) - tsrange(%s, %s) * tsrange(first_seen - interval '1 second', last_seen + interval '1 second') FROM {} WHERE mmsi = %s AND imo = %s".format(aisdb.clean_imolist.name), 
+            cur.execute("SELECT tsrange(%s, %s) - tsrange(%s, %s) * tsrange(first_seen - interval '1 second', last_seen + interval '1 second') FROM {} WHERE mmsi = %s AND imo = %s".format(aisdb.clean_imolist.name),
                         [start, end, start, end, mmsi, imo])
             row = cur.fetchone()
             if not row is None:
                 sub_interval = row[0]
                 if sub_interval.isempty:
                     return None
-                else:   
+                else:
                     return sub_interval.lower, sub_interval.upper
             else:
                 return (start, end)
@@ -232,10 +235,10 @@ def upsert_interval_to_imolist(aisdb, mmsi, imo, start, end):
         count = cur.fetchone()[0]
         if count == 1:
             cur.execute("""UPDATE {} SET
-                        first_seen = LEAST(first_seen, %s), 
+                        first_seen = LEAST(first_seen, %s),
                         last_seen = GREATEST(last_seen, %s)
                         WHERE mmsi = %s AND imo = %s""".format(aisdb.clean_imolist.name),
                         [start, end, mmsi, imo])
         elif count == 0:
-            aisdb.clean_imolist.insert_row({'mmsi': mmsi, 'imo': imo, 'first_seen': start, 
+            aisdb.clean_imolist.insert_row({'mmsi': mmsi, 'imo': imo, 'first_seen': start,
                                           'last_seen': end})

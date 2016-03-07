@@ -33,7 +33,7 @@ DEFAULT_CONFIG.set('globals', 'repos', 'pyrate/repositories')
 DEFAULT_CONFIG.set('globals', 'algos', 'pyrate/algorithms')
 
 class Loader:
-    """The Loader joins together data repositories and algorithms, 
+    """The Loader joins together data repositories and algorithms,
     and executes operations on them."""
 
     def __init__(self, config):
@@ -45,6 +45,7 @@ class Loader:
 
         repopaths = str(config.get('globals', 'repos'))
         repopaths = repopaths.split(',')
+        repopaths.extend('pyrate/repositories')
 
         # load repo drivers from repopaths
         repo_drivers = load_all_modules(repopaths)
@@ -65,6 +66,7 @@ class Loader:
 
         algopaths = str(config.get('globals', 'algos'))
         algopaths = algopaths.split(',')
+        algopaths.extend('pyrate/algorithms')
 
         # load algorithms from algopaths
         algorithms = load_all_modules(algopaths)

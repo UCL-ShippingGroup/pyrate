@@ -17,7 +17,6 @@ def make_temporary_file():
     with tempfile.NamedTemporaryFile() as openfile:
         return openfile.name
 
-
 @fixture(scope='function')
 def setup_database(request):
     """ Creates the required tables in the test_aisdb postgres database
@@ -40,6 +39,8 @@ def setup_database(request):
         with aisdb:
             cursor = aisdb.conn.cursor()
             cursor.execute("drop schema public cascade;")
+            cursor.execute("create schema public;")
+            aisdb.conn.commit()
     request.addfinalizer(teardown)
     return aisdb
 
@@ -116,4 +117,3 @@ class TestParsing():
                    'baddata': bad_object}
         with database:
             run(inp=inputs, out=outputs, dropindices=False, source=0)
-        assert 0 == 1

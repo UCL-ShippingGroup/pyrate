@@ -19,7 +19,7 @@ def parse_timestamp(s):
 def int_or_null(s):
     if len(s) == 0:
         return None
-        else:
+    else:
         return int(s)
 
 def float_or_null(s):
@@ -39,6 +39,17 @@ def longstr(s):
     return s
 
 def set_null_on_fail(row, col, test):
+    """ Helper function which sets the column in a row of data to null on fail
+
+    Arguments
+    ---------
+    row : dict
+        A dictionary of the fields
+    col : str
+        The column to check
+    test : func
+        One of the validation functions in pyrate.utils
+    """
     if not row[col] == None and not test(row[col]):
         row[col] = None
 
@@ -110,8 +121,22 @@ def xml_name_to_csv(name):
     return AIS_CSV_COLUMNS[AIS_XML_COLNAMES.index(name)]
 
 def parse_raw_row(row):
-    """Parse values from row, returning a new dict with values
-    converted into appropriate types. Throw an exception to reject row"""
+    """Parse values from row, returning a new dict with converted values
+
+    Parse values from row, returning a new dict with converted values
+    converted into appropriate types. Throw an exception to reject row
+
+    Arguments
+    ---------
+    row : dict
+        A dictionary of headers and values from the csv file
+
+    Returns
+    -------
+    converted_row : dict
+        A dictionary of headers and values converted using the helper functions
+
+    """
     converted_row = {}
     converted_row[MMSI] = int_or_null(row[MMSI])
     converted_row[TIME] = parse_timestamp(row[TIME])
@@ -256,6 +281,36 @@ def run(inp, out, dropindices=True, source=0):
         logging.info("Finished building indices, time elapsed = %fs", time.time() - start)
 
 def parse_file(fp, name, ext, baddata_logfile, cleanq, dirtyq, source=0):
+    """ Parses a file containing AIS data
+
+    Arguments
+    ---------
+    fp : str
+        Filepath of file to be parsed
+    name : str
+        Name of file to be parsed
+    ext : str
+        Extension, either '.csv' or '.xml'
+    baddata_logfile : str
+        Name of the logfile
+    cleanq :
+        Queue for messages to be inserted into clean table
+    dirtyq :
+        Queue for messages to be inserted into dirty table
+    source : int, optional, default=0
+        0 is satellite, 1 is terrestrial
+
+    Returns
+    -------
+    invalid_ctr : int
+        Number of invalid rows
+    clean_ctr : int
+        Number of clean rows
+    dirty_ctr : int
+        Number of dirty rows
+    time_elapsed : time
+        The time elapsed since starting the parse_file procedure
+    """
     filestart = time.time()
     logging.info("Parsing "+ name)
 
@@ -316,6 +371,26 @@ def parse_file(fp, name, ext, baddata_logfile, cleanq, dirtyq, source=0):
     return (invalid_ctr, clean_ctr, dirty_ctr, time.time() - filestart)
 
 def readcsv(fp):
+    """ Returns a dictionary of the subset of columns required
+
+    Reads each line in CSV file, checks if all columns are available,
+    and returns a dictionary of the subset of columns required
+    (as per AIS_CSV_COLUMNS).
+
+    If row is invalid (too few columns),
+    returns an empty dictionary.
+
+    Arguments
+    ---------
+    fp : str
+        File path
+
+    Yields
+    ------
+    rowsubset : dict
+        A dictionary of the subset of columns as per `columns`
+
+    """
     # fix for large field error. Specify max field size to the maximum convertable int value.
     # source: http://stackoverflow.com/questions/15063936/csv-error-field-larger-than-field-limit-131072
     max_int = sys.maxsize
