@@ -56,6 +56,8 @@ class FileRepository:
                 _, ext = os.path.splitext(filename)
                 if self.allowed_extensions == None or ext in self.allowed_extensions:
                     with open(os.path.join(root, filename), 'r', encoding='utf-8') as fp:
+                    # hitting errors with decoding the data, utf-8 seems to sort it
+                    with open(os.path.join(root, filename), 'r', encoding='iso-8859-1') as fp:
                         yield (fp, filename, ext)
                 # zip file auto-extract
                 elif self.unzip and ext == '.zip':
@@ -67,7 +69,7 @@ class FileRepository:
                                     with z.open(zname, 'r') as fp:
                                         # zipfile returns a binary file, so we require a
                                         # TextIOWrapper to decode it
-                                        yield (io.TextIOWrapper(fp, encoding='ascii'), zname, ext)
+                                        yield (io.TextIOWrapper(fp, encoding='iso-8859-1'), zname, ext)
                     except (zipfile.BadZipFile, RuntimeError) as error:
                         logging.warning("Unable to extract zip file %s: %s ", filename, error)
                         failed_files.append(filename)
