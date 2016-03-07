@@ -3,10 +3,11 @@
 import logging
 from pyrate import loader
 import argparse
+from pyrate import get_resource_filename
 
 def main():
     """ The command line interface
-    
+
     Type `pyrate --help` for help on how to use the command line interface
     """
     logger = logging.getLogger()
@@ -14,7 +15,8 @@ def main():
 
     # load tool components
     config = loader.DEFAULT_CONFIG
-    config.read(['default.conf'])
+    configfilepath = get_resource_filename('config/default.conf')
+    config.read(configfilepath)
     l = loader.Loader(config)
 
     def list_components(args):
