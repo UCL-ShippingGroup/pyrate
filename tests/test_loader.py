@@ -2,6 +2,8 @@ from pyrate.loader import Loader
 from utilities import make_temporary_file
 
 class TestLoader:
+    """ Tests for the pyrate.loader.Loader class
+    """
 
     def setup(self):
         contents = """
@@ -28,11 +30,16 @@ class TestLoader:
             configfile.write(contents)
             self.config = tempfile
 
-    def test_loader_no_config(self):
+    def test_loader_config_no_global(self):
+        """ Tests that repositories and algorithms are correctly loaded
 
-        myLoader = Loader(self.config)
-        algos = list(myLoader.get_algorithms())
-        repos = list(myLoader.get_data_repositories())
+        When using a config file, without a global section, check that the
+        bundled repos and algorithms are loaded correctly
+        """
+
+        myloader = Loader(self.config)
+        algos = list(myloader.get_algorithms())
+        repos = list(myloader.get_data_repositories())
 
         expected_algorithms = ['vesselimporter',
                                'imolist',
