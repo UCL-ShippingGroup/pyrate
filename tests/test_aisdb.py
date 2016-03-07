@@ -89,7 +89,7 @@ def generate_test_input_data(headers=None):
     tempfile : tempfile.NamedTemporaryFile
         A csv file with a row of AIS headers
     """
-    if headers == None:
+    if headers is None:
         headers = AIS_CSV_COLUMNS
     assert isinstance(headers, list)
 
