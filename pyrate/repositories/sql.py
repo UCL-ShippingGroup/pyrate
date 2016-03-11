@@ -48,6 +48,8 @@ class Table(object):
         return self.name
 
     def create(self):
+        """ Creates tables in the database
+        """
         with self.db.conn.cursor() as cur:
             logging.info("CREATING " + self.name + " table")
             columns = []
@@ -98,6 +100,8 @@ class Table(object):
             self.db.conn.commit()
 
     def status(self):
+        """ Returns the number of records in the table
+        """
         with self.db.conn.cursor() as cur:
             try:
                 cur.execute("SELECT COUNT(*) FROM \""+ self.name +"\"")
@@ -108,19 +112,44 @@ class Table(object):
                 return -1
 
     def insert_row(self, data):
+        """ Inserts one row into the table
+        """
         with self.db.conn.cursor() as cur:
-            columnlist = '(' + ','.join([c.lower() for c in data.keys()]) + ')'
+            columnlist = self.get_list_of_columns(self, data)
             tuplestr = "(" + ",".join("%({})s".format(i) for i in data.keys()) + ")"
             # logging.debug(cur.mogrify("INSERT INTO " + self.name + " "+ columnlist + " VALUES "+ tuplestr, data))
             cur.execute("INSERT INTO " + self.name + " "+ columnlist + " VALUES "+ tuplestr, data)
 
+    def get_list_of_columns(self, row):
+        """ Gets a list of the columns from a row dictionary
+
+        Arguments
+        ---------
+        row : dict
+            A dictionary of (field, value) pairs
+
+        Returns
+        -------
+        columnslist : list
+            A list of column names
+        """
+        columnlist = '(' + ','.join([c.lower() for c in row.keys()]) + ')'
+        return columnlist
+
     def insert_rows_batch(self, rows):
+        """ Inserts a number of rows into the table
+
+        Arguments
+        ---------
+        rows : list
+            A list of dicts of (column, value) pairs
+        """
         # check there are rows in insert
         if len(rows) == 0:
             return
         # logging.debug("Row to insert: {}".format(rows[0]))
         with self.db.conn.cursor() as cur:
-            columnlist = '(' + ','.join([c.lower() for c in rows[0].keys()]) + ')'
+            columnlist = self.get_list_of_columns(self, row[0])
             # logging.debug("Using columns: {}".format(columnlist))
             tuplestr = "(" + ",".join("%({})s".format(i) for i in rows[0]) + ")"
             # create a single query to insert list of tuples
