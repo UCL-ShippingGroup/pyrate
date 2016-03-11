@@ -115,12 +115,12 @@ class Table(object):
         """ Inserts one row into the table
         """
         with self.db.conn.cursor() as cur:
-            columnlist = self.get_list_of_columns(self, data)
+            columnlist = self._get_list_of_columns(data)
             tuplestr = "(" + ",".join("%({})s".format(i) for i in data.keys()) + ")"
             # logging.debug(cur.mogrify("INSERT INTO " + self.name + " "+ columnlist + " VALUES "+ tuplestr, data))
             cur.execute("INSERT INTO " + self.name + " "+ columnlist + " VALUES "+ tuplestr, data)
 
-    def get_list_of_columns(self, row):
+    def _get_list_of_columns(self, row):
         """ Gets a list of the columns from a row dictionary
 
         Arguments
@@ -130,8 +130,8 @@ class Table(object):
 
         Returns
         -------
-        columnslist : list
-            A list of column names
+        columnslist : str
+            A str of column names in lower case, wrapped in brackets '()'
         """
         columnlist = '(' + ','.join([c.lower() for c in row.keys()]) + ')'
         return columnlist
@@ -149,7 +149,7 @@ class Table(object):
             return
         # logging.debug("Row to insert: {}".format(rows[0]))
         with self.db.conn.cursor() as cur:
-            columnlist = self.get_list_of_columns(self, row[0])
+            columnlist = self._get_list_of_columns(rows[0])
             # logging.debug("Using columns: {}".format(columnlist))
             tuplestr = "(" + ",".join("%({})s".format(i) for i in rows[0]) + ")"
             # create a single query to insert list of tuples
