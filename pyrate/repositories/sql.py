@@ -65,6 +65,7 @@ class Table(object):
             # c[1]) for c in self.cols]
             sql = "CREATE TABLE IF NOT EXISTS \"" + self.name + \
                 "\" (" + ','.join(columns + self.constraint) + ")"
+            # logging.debug(cur.mogrify(sql))
             cur.execute(sql)
             self.db.conn.commit()
 
@@ -96,7 +97,7 @@ class Table(object):
         """Delete all data in the table."""
         with self.db.conn.cursor() as cur:
             logging.info("Truncating table "+ self.name)
-            cur.execute("TRUNCATE TABLE \""+ self.name + "\"")
+            cur.execute("TRUNCATE TABLE \""+ self.name + "\" CASCADE")
             self.db.conn.commit()
 
     def status(self):
@@ -132,6 +133,7 @@ class Table(object):
         -------
         columnslist : str
             A str of column names in lower case, wrapped in brackets '()'
+
         """
         columnlist = '(' + ','.join([c.lower() for c in row.keys()]) + ')'
         return columnlist

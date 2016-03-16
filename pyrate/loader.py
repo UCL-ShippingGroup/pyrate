@@ -31,9 +31,9 @@ def load_all_modules(paths):
 configfilepath = get_resource_filename('config/default.conf')
 
 DEFAULT_CONFIG = ConfigParser()
-# DEFAULT_CONFIG.add_section('globals')
-# DEFAULT_CONFIG.set('globals', 'repos', 'pyrate/repositories')
-# DEFAULT_CONFIG.set('globals', 'algos', 'pyrate/algorithms')
+DEFAULT_CONFIG.add_section('globals')
+DEFAULT_CONFIG.set('globals', 'repos', get_resource_filename('repositories'))
+DEFAULT_CONFIG.set('globals', 'algos', get_resource_filename('algorithms'))
 
 class Loader:
     """The Loader joins together data repositories and algorithms,
