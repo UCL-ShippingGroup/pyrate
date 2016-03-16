@@ -322,7 +322,7 @@ def run(inp, out, dropindices=True, source=0):
 
 
 def parse_file(fp, name, ext, baddata_logfile, cleanq, dirtyq, source=0):
-    """ Parses a file containing AIS data
+    """ Parses a file containing AIS data, placing rows of data onto queues
 
     Arguments
     ---------
