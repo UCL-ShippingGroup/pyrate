@@ -28,12 +28,6 @@ def load_all_modules(paths):
             logging.warn("Error importing module "+ name +": {}".format(error))
     return modules
 
-configfilepath = get_resource_filename('config/default.conf')
-
-DEFAULT_CONFIG = ConfigParser()
-DEFAULT_CONFIG.add_section('globals')
-DEFAULT_CONFIG.set('globals', 'repos', get_resource_filename('repositories'))
-DEFAULT_CONFIG.set('globals', 'algos', get_resource_filename('algorithms'))
 
 class Loader:
     """The Loader joins together data repositories and algorithms,
@@ -43,8 +37,7 @@ class Loader:
         # load from file if path provided
         loaded_conf = ConfigParser()
         if config is None:
-            loaded_conf.read(configfilepath)
-            config = loaded_conf
+            raise RuntimeError("No config file defined.")
         else:
             if isinstance(config, str):
                 loaded_conf.read(config)
