@@ -7,7 +7,7 @@ from configparser import ConfigParser
 __author__ = '''Eoin O'Keeffe, Will Usher'''
 
 
-def gen_default_config(args):
+def gen_default_config(*args):
     """Generates a default config file in current folder
 
     This command generates a default configuration file and folder structure
