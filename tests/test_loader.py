@@ -1,6 +1,6 @@
 from pyrate.loader import Loader
 from utilities import make_temporary_file
-from pytest import fixture
+from pytest import fixture, raises
 
 class TestLoader:
     """ Tests for the pyrate.loader.Loader class
@@ -108,23 +108,10 @@ class TestLoader:
 
 
     def test_loader_no_config_file(self):
-        """ Tests that repositories and algorithms loaded without config file
+        """ Tests a runtime error is raised if no config file
 
-        When not specifying a config file, check that the packaged default is
-        used and bundled repos and algorithms are loaded correctly
+        If no config file is in the current folder, check that a runtime error
+        is raised
         """
-
-        myloader = Loader()
-        algos = list(myloader.get_algorithms())
-        repos = list(myloader.get_data_repositories())
-
-        expected_algorithms = ['vesselimporter',
-                               'imolist',
-                               'aisparser']
-        expected_repositories = ['aiscsv',
-                                 'baddata',
-                                 'aisdb',]
-        for expected_algorithm in expected_algorithms:
-            assert expected_algorithm in algos
-        for expected_repository in expected_repositories:
-            assert expected_repository in repos
+        with raises(RuntimeError):
+            Loader()
