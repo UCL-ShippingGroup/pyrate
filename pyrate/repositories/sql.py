@@ -1,5 +1,17 @@
-import psycopg2
+"""Classes for connection to and management of database tables
+
+PgsqlRepository
+---------------
+Sets up a connection to a pyrate database repository
+
+Table
+-----
+Used to encapsulate a pyrate database table
+
+"""
 import logging
+import psycopg2
+
 
 def load(options, readonly=False):
     return PgsqlRepository(options)
@@ -19,7 +31,7 @@ class PgsqlRepository(object):
         self.conn = None
 
     def connection(self):
-        return psycopg2.connect(host=self.host, database=self.db, user=self.user, password=self.password)
+        return psycopg2.connect(host=self.host, database=self.db, user=self.user, password=self.password, connect_timeout=3)
 
     def __enter__(self):
         self.conn = self.connection()
@@ -28,6 +40,8 @@ class PgsqlRepository(object):
         self.conn.close()
 
 class Table(object):
+    """A database table
+    """
 
     def __init__(self, db, name, cols, indices=None, constraint=None,
                  foreign_keys=None):
@@ -101,13 +115,18 @@ class Table(object):
             self.db.conn.commit()
 
     def status(self):
-        """ Returns the number of records in the table
+        """ Returns the approximate number of records in the table
+
+        Returns
+        -------
+        integer
+
         """
         with self.db.conn.cursor() as cur:
             try:
-                cur.execute("SELECT COUNT(*) FROM \""+ self.name +"\"")
+                cur.execute("SELECT reltuples FROM pg_class WHERE oid = %s::regclass::oid", [self.name])
                 self.db.conn.commit()
-                return cur.fetchone()[0]
+                return int(cur.fetchone()[0])
             except psycopg2.ProgrammingError:
                 self.db.conn.rollback()
                 return -1

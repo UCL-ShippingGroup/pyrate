@@ -136,7 +136,7 @@ class AISdb(sql.PgsqlRepository):
         self.dirty = sql.Table(self, 'ais_dirty', self.dirty_db_spec['cols'],
                                self.dirty_db_spec['indices'])
         self.sources = sql.Table(self, 'ais_sources', self.sources_db_spec['cols'])
-        self.imolist = sql.Table(self, 'imo_list', self.imolist_db_spec['cols'], 
+        self.imolist = sql.Table(self, 'imo_list', self.imolist_db_spec['cols'],
                                  constraint=self.imolist_db_spec['constraint'])
         self.extended = AISExtendedTable(self)
         self.clean_imolist = sql.Table(self, 'imo_list_clean', self.clean_imo_list['cols'], constraint=self.clean_imo_list['constraint'])
@@ -215,7 +215,7 @@ class AISdb(sql.PgsqlRepository):
         if not to_ts is None:
             where.append("time <= %s")
             params.append(to_ts)
-        
+
         cols_list = ','.join([c[0].lower() for c in db.cols])
         where_clause = ' AND '.join(where)
         sql = "SELECT {} FROM {} WHERE {} ORDER BY time ASC".format(cols_list,
@@ -245,10 +245,10 @@ class AISdb(sql.PgsqlRepository):
 class AISExtendedTable(sql.Table):
 
     def __init__(self, db):
-        super(AISExtendedTable, self).__init__(db, 'ais_extended', 
+        super(AISExtendedTable, self).__init__(db, 'ais_extended',
             AISdb.clean_db_spec['cols'] + [('location', 'geography(POINT, 4326)')],
             AISdb.clean_db_spec['indices'])
-    
+
     def create(self):
         with self.db.conn.cursor() as cur:
             cur.execute("CREATE EXTENSION IF NOT EXISTS postgis")
@@ -262,7 +262,7 @@ class AISExtendedTable(sql.Table):
                             RETURN NEW;
                         END;
                         ' LANGUAGE plpgsql;
-                        CREATE TRIGGER {0}_gis_insert 
+                        CREATE TRIGGER {0}_gis_insert
                         BEFORE INSERT OR UPDATE ON {0} FOR EACH ROW EXECUTE PROCEDURE location_insert();
                         """.format(self.name))
             except psycopg2.ProgrammingError:
