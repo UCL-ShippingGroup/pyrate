@@ -449,7 +449,7 @@ def readcsv(fp):
 
     # First line is column headers.
     # Use to extract indices of columns we are extracting
-    cols = fp.readline().split(',')
+    cols = fp.readline().rstrip('\r\n').split(',')
     indices = {}
     n_cols = len(cols)
     try:
