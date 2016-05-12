@@ -1,8 +1,11 @@
+from pyrate.algorithms.aisparser import run, AIS_CSV_COLUMNS, readcsv
+from utilities import setup_database
 from pyrate.repositories.aisdb import AISdb
 from pyrate.repositories import file
 from pyrate.algorithms.aisparser import run, AIS_CSV_COLUMNS
 from utilities import setup_database
 import logging
+import os
 import tempfile
 from pytest import fixture
 import csv
@@ -74,10 +77,26 @@ def generate_test_input_data(headers=None):
         writer.writerow(headers)
     return tempfile
 
-
 class TestParsing():
     """ Tests for parsing AIS data
     """
+    def test_script_runs(self, set_tmpdir_environment):
+        """
+        """
+        input_file = os.path.join(str(set_tmpdir_environment), 'test_input.csv')
+        print(input_file)
+        written_rows = [{'ETA_minute': '45'}, {'IMO': 'Baked', 'Navigational_status': '4'}]
+        with open(input_file, 'w') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=AIS_CSV_COLUMNS, dialect="excel")
+            writer.writeheader()
+            for row in written_rows:
+                writer.writerow(row)
+        with open(input_file, 'r') as csvfile:
+            iterator = readcsv(csvfile)
+            for actual, expected in zip(iterator, written_rows):
+                for col in expected.keys():
+                    assert actual[col] == expected[col]
+
 
     def test_parser(self, setup_database, setup_input_csv_file, setup_log_csv_file):
         """

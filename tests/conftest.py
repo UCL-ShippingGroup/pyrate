@@ -10,3 +10,9 @@
 from __future__ import print_function, absolute_import, division
 
 import pytest
+import os
+
+@pytest.fixture(scope='session')
+def set_tmpdir_environment(tmpdir_factory):
+    tmpdir = tmpdir_factory.mktemp('test_aiscsv')
+    return tmpdir
