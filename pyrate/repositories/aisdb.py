@@ -9,7 +9,8 @@ except ImportError:
 
 EXPORT_COMMANDS = [('status', 'report status of this repository.'),
                    ('create', 'create the repository.'),
-                   ('truncate', 'delete all data in this repository.')]
+                   ('truncate', 'delete all data in this repository.'),
+                   ('update', 'update the database schema')]
 
 def load(options, readonly=False):
     return AISdb(options, readonly)
@@ -38,7 +39,7 @@ class AISdb(sql.PgsqlRepository):
             ('ETA_hour', 'integer'),
             ('ETA_minute', 'integer'),
             ('source', 'smallint'),
-            ('ID', 'SERIAL PRIMARY KEY')
+            ('ID', 'BIGSERIAL PRIMARY KEY')
         ],
         'indices': [
             ('dt_idx', ['Time']),
@@ -71,7 +72,7 @@ class AISdb(sql.PgsqlRepository):
             ('ETA_hour', 'integer'),
             ('ETA_minute', 'integer'),
             ('source', 'smallint'),
-            ('ID', 'SERIAL PRIMARY KEY')
+            ('ID', 'BIGSERIAL PRIMARY KEY')
         ],
         'indices': [
             ('dt_idx', ['Time']),
@@ -161,6 +162,22 @@ class AISdb(sql.PgsqlRepository):
         """Delete all data in the AIS table."""
         for tb in self.tables:
             tb.truncate()
+
+    def update(self):
+        """Updates (non-destructively) existing tables to new schema
+        """
+        for db in [self.clean, self.dirty]:
+            table_name = db.get_name()
+            sql = """ALTER TABLE {} ALTER COLUMN id SET DATA TYPE BIGINT;""".format(table_name)
+            with self.conn.cursor() as cur:
+                logging.debug("Updating the database schema for table {}".format(table_name))
+                logging.debug(cur.mogrify(sql))
+                try:
+                    cur.execute(sql)
+                    self.conn.commit()
+                except psycopg2.ProgrammingError as error:
+                    logging.error("Error updating database schema for table {}".format(table_name))
+                    logging.error(error.pgerror)
 
     def ship_info(self, imo):
         with self.conn.cursor() as cur:
