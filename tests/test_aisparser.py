@@ -1,10 +1,7 @@
 from pyrate.algorithms.aisparser import run, AIS_CSV_COLUMNS, readcsv
-from utilities import setup_database
 from pyrate.repositories.aisdb import AISdb
 from pyrate.repositories import file
-from pyrate.algorithms.aisparser import run, AIS_CSV_COLUMNS
 from utilities import setup_database
-import logging
 import os
 import tempfile
 from pytest import fixture
