@@ -172,21 +172,23 @@ def detect_location_outliers(msg_stream, as_df=False):
 
     The algorithm proceeds as follows:
 
-    1)  Create a linked list of all messages with non-null locations
+    #.  Create a linked list of all messages with non-null locations
         (pointing to next message)
-    2)  Loop through linked list and check for location outliers:
+    #.  Loop through linked list and check for location outliers:
+
         * A location outlier is who does not pass the speed test (<= 50kn;
-        link is 'discarded' when not reached in time)
-        * No speed test is performed when
-            - distance too small (< 0.054nm ~ 100m; catches most positioning
-              inaccuracies)
-                => no outlier
-            - time gap too big (>= 215h ~ 9d; time it takes to get anywhere on
-              the globe at 50kn not respecting land)
-                =>  next message is new 'start'
+          link is 'discarded' when not reached in time)
+        * No speed test is performed when:
+
+            * distance too small (< 0.054nm ~ 100m; catches most positioning
+              inaccuracies) => no outlier
+            * time gap too big (>= 215h ~ 9d; time it takes to get anywhere on
+              the globe at 50kn not respecting land) =>  next message is new 'start'
+
         If an alledged outlier is found its link is set to be the current
         message's link
-    3)  The start of a linked list becomes special attention: if speed check
+
+    #.  The start of a linked list becomes special attention: if speed check
         fails, the subsequent link is tested
 
     Line of thinking is: Can I get to the next message in time? If not 'next'
@@ -206,6 +208,7 @@ def detect_location_outliers(msg_stream, as_df=False):
     -------
     outlier_rows :
         The rows in the message stream which are outliers
+
     """
     if as_df:
         raise NotImplementedError('msg_stream cannot be DataFrame, as_df=True does not work yet.')

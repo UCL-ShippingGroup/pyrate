@@ -40,23 +40,24 @@ def filter_good_ships(aisdb):
     """Generate a set of imo numbers and (mmsi, imo) validity intervals
 
     Generate a set of imo numbers and (mmsi, imo) validity intervals
-    for ships which are deemed to be 'clean'.
-    A clean ship is defined as one which:
+    for ships which are deemed to be 'clean'. A clean ship is defined as one which:
+
      * Has valid MMSI numbers associated with it.
      * For each MMSI number, the period of time it is associated with this IMO
-    (via message number 5) overlaps with the period the MMSI number was in use.
+       (via message number 5) overlaps with the period the MMSI number was in use.
      * For each MMSI number, its usage period does not overlap with that of any
-    other of this ship's MMSI numbers.
+       other of this ship's MMSI numbers.
      * That none of these MMSI numbers have been used by another ship (i.e.
-    another IMO number is also associated with this MMSI)
+       another IMO number is also associated with this MMSI)
 
-    Return
-    ------
+    Returns
+    =======
     valid_imos :
         A set of valid imo numbers
     imo_mmsi_intervals :
         A list of (mmsi, imo, start, end) tuples, describing the validity
         intervals of each (mmsi, imo) pair
+
     """
 
     with aisdb.conn.cursor() as cur:

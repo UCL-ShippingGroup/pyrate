@@ -124,7 +124,7 @@ class Table(object):
         """
         with self.db.conn.cursor() as cur:
             try:
-                cur.execute("SELECT reltuples FROM pg_class WHERE oid = %s::regclass::oid", [self.name])
+                cur.execute("SELECT COUNT(*) FROM \""+ self.name +"\"")
                 self.db.conn.commit()
                 return int(cur.fetchone()[0])
             except psycopg2.ProgrammingError:

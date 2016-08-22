@@ -193,13 +193,13 @@ def get_data_source(name):
     If the name contains 'terr' then we guess terrestrial data,
     otherwise we assume satellite.
 
-    Argument
-    --------
+    Arguments
+    =========
     name : str
         File name
 
     Returns
-    -------
+    =======
     int
         0 if satellite, 1 if terrestrial
 
