@@ -6,3 +6,4 @@ geographiclib
 pandas
 psycopg2
 geopy
+sphinx>=1.4
