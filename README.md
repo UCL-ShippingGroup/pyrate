@@ -1,5 +1,6 @@
 ## Pyrate &mdash; the Python AIS Tools Environment
 
+[![Documentation Status](https://readthedocs.org/projects/pyrate-ship/badge/?version=latest)](http://pyrate-ship.readthedocs.io/en/latest/?badge=latest)            
 [![Coverage Status](https://coveralls.io/repos/github/willu47/pyrate/badge.svg?branch=test_db)](https://coveralls.io/github/willu47/pyrate?branch=test_db)
 [![Build Status](https://travis-ci.org/willu47/pyrate.svg?branch=master)](https://travis-ci.org/willu47/pyrate)
 [![Code Issues](https://www.quantifiedcode.com/api/v1/project/47c974bd83ed47ce88dac312464ab3b0/badge.svg)](https://www.quantifiedcode.com/app/project/47c974bd83ed47ce88dac312464ab3b0)
