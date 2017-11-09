@@ -2,17 +2,17 @@ sudo: false
 language: python
 virtualenv:
   system_site_packages: true
-services:
-  - postgresql
 env:
   matrix:
-  - DISTRIB="conda" PYTHON_VERSION="3.3" COVERAGE="true"
-  - DISTRIB="conda" PYTHON_VERSION="3.4" COVERAGE="false"
+  - DISTRIB="conda" PYTHON_VERSION="3.4" COVERAGE="true"
+  - DISTRIB="conda" PYTHON_VERSION="3.5" COVERAGE="false"
 addons:
+  postgresql: "9.5"
   apt:
     packages:
     - git
     - python-pip
+    - postgresql-9.5-postgis-2.3
 install:
 - source tests/travis_install.sh
 - pip install -r test-requirements.txt

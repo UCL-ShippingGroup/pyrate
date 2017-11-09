@@ -65,6 +65,7 @@ def gen_default_config(*args):
     default_config.set('aisdb', 'ro_pass', 'test_ais')
     default_config.set('aisdb', 'ro_user', 'test_ais')
     default_config.set('aisdb', 'ro_pass', 'test_ais')
+    default_config.set('aisdb', 'postgis', 'yes')
 
     # now write to file
     with open('aistool.conf', 'w') as config_file:
