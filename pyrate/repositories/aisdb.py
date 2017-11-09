@@ -139,10 +139,15 @@ class AISdb(sql.PgsqlRepository):
         self.sources = sql.Table(self, 'ais_sources', self.sources_db_spec['cols'])
         self.imolist = sql.Table(self, 'imo_list', self.imolist_db_spec['cols'],
                                  constraint=self.imolist_db_spec['constraint'])
-        self.extended = AISExtendedTable(self)
+        if self.postgis=='yes':
+            self.extended = AISExtendedTable(self)
+            
         self.clean_imolist = sql.Table(self, 'imo_list_clean', self.clean_imo_list['cols'], constraint=self.clean_imo_list['constraint'])
         self.action_log = sql.Table(self, 'action_log', self.action_log_spec['cols'], self.action_log_spec['indices'], constraint=self.action_log_spec['constraint'])
-        self.tables = [self.clean, self.dirty, self.sources, self.imolist, self.extended, self.clean_imolist, self.action_log]
+        if self.postgis=='yes':
+            self.tables = [self.clean, self.dirty, self.sources, self.imolist, self.extended, self.clean_imolist, self.action_log]
+        else:
+            self.tables = [self.clean, self.dirty, self.sources, self.imolist, self.clean_imolist, self.action_log]
 
     def status(self):
         print("Status of PGSql database "+ self.db +":")
