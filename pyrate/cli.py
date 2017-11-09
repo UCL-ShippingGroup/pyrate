@@ -27,13 +27,16 @@ def main():
     # load tool components
     config = ConfigParser()
     configfilepath = 'aistool.conf'
+    l=None
     if os.path.exists(configfilepath):
         config.read(configfilepath)
+        logger.debug(configfilepath)
         l = loader.Loader(config)
     else:
-        raise RuntimeError("The expected configuration file 'aistool.conf' is not present in this folder. "
+        logger.warn("The expected configuration file 'aistool.conf' is not present in this folder. "
                            "Please move to the correct folder, or run set_default to initialise "
                            "the current directory.")
+        # return
 
     def list_components(args):
         print("{} repositories:".format(len(l.get_data_repositories())))
@@ -62,19 +65,20 @@ def main():
                                         help='list loaded data repositories and algorithms')
     parser_list.set_defaults(func=list_components)
 
-    for r in l.get_data_repositories():
-        repo_parser = subparsers.add_parser(r, help='commands for '+ r +' repository')
-        repo_subparser = repo_parser.add_subparsers(help=r+' repository commands.')
-        for cmd, desc in l.get_repository_commands(r):
-            cmd_parser = repo_subparser.add_parser(cmd, help=desc)
-            cmd_parser.set_defaults(func=execute_repo_command, cmd=cmd, repo=r)
+    if (l != None):
+        for r in l.get_data_repositories():
+            repo_parser = subparsers.add_parser(r, help='commands for '+ r +' repository')
+            repo_subparser = repo_parser.add_subparsers(help=r+' repository commands.')
+            for cmd, desc in l.get_repository_commands(r):
+                cmd_parser = repo_subparser.add_parser(cmd, help=desc)
+                cmd_parser.set_defaults(func=execute_repo_command, cmd=cmd, repo=r)
 
-    for a in l.get_algorithms():
-        alg_parser = subparsers.add_parser(a, help='commands for algorithm '+ a +'')
-        alg_subparser = alg_parser.add_subparsers(help=a+' algorithm commands.')
-        for cmd, desc in l.get_algorithm_commands(a):
-            alg_parser = alg_subparser.add_parser(cmd, help=desc)
-            alg_parser.set_defaults(func=execute_algorithm, cmd=cmd, alg=a)
+        for a in l.get_algorithms():
+            alg_parser = subparsers.add_parser(a, help='commands for algorithm '+ a +'')
+            alg_subparser = alg_parser.add_subparsers(help=a+' algorithm commands.')
+            for cmd, desc in l.get_algorithm_commands(a):
+                alg_parser = alg_subparser.add_parser(cmd, help=desc)
+                alg_parser.set_defaults(func=execute_algorithm, cmd=cmd, alg=a)
 
     args = parser.parse_args()
     if 'func' in args:
